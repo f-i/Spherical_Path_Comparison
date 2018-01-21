@@ -2,7 +2,7 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 12Dec2017
+Modified on 20Jan2018
 
 @__author__	:	Chenjian Fu
 @__email__		:	cfu3@kent.edu
@@ -42,12 +42,12 @@ PLATE_V_MAX_PAST=30  #according to Swanson-Hysell etal.2009, Kulakov etal.2014; 
 POL_WAND_DIR_DIF_MAX=180
 
 #Source: @__author__, Oct2015
-GET_AZI="""
+AZI="""
 gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'
 """
 
 #Source: @__author__, Jan2016
-GET_SMALLER_ANGLE_REMAINDER="""
+SMALLER_ANGLE_REMAINDER="""
 gmt math -Q {0} {1} SUB 360 FMOD ABS =
 """
 
@@ -314,8 +314,8 @@ def btr_(trj,trj2,fmt1='textfile',fmt2='textfile',fna='file'):
 def ang_dif_betw2vectors_head2tail(lo1,la1,lo2,la2,lo3,la3):
     """Angular difference between 2 spherical surface vectors intersecting at
     (lo2,la2)                                       Source: @__author__, 2017"""
-    agl=s2f(run_sh(GET_AZI.format(lo2,la2,lo3,la3)).decode().rstrip('\n'))-\
-        s2f(run_sh(GET_AZI.format(lo2,la2,lo1,la1)).decode().rstrip('\n'))
+    agl=s2f(run_sh(AZI.format(lo2,la2,lo3,la3)).decode().rstrip('\n'))-\
+        s2f(run_sh(AZI.format(lo2,la2,lo1,la1)).decode().rstrip('\n'))
     if agl<-180: agl,sign=360+agl,-1
     elif agl>=-180 and agl<0: agl,sign=-agl,1
     elif agl>=0 and agl<180: sign=-1
@@ -343,24 +343,24 @@ def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile'):
             else:
                 ds1=s2f(PMAGPY36().angle((df1.iloc[i-1][0],df1.iloc[i-1][1]),
                                          (df1.iloc[i][0],df1.iloc[i][1])))
-                eta1=s2f(run_sh(GET_AZI.format(df1.iloc[i-1][0],
-                                               df1.iloc[i-1][1],df1.iloc[i][0],
-                                               df1.iloc[i][1])).decode().rstrip('\n'))
+                eta1=s2f(run_sh(AZI.format(df1.iloc[i-1][0],
+                                           df1.iloc[i-1][1],df1.iloc[i][0],
+                                           df1.iloc[i][1])).decode().rstrip('\n'))
             if df2.iloc[i-1][0]==df2.iloc[i][0] and df2.iloc[i-1][1]==df2.iloc[i][1]:
                 ds2=0.
                 eta2=tt2
             else:
                 ds2=s2f(PMAGPY36().angle((df2.iloc[i-1][0],df2.iloc[i-1][1]),
                                          (df2.iloc[i][0],df2.iloc[i][1])))
-                eta2=s2f(run_sh(GET_AZI.format(df2.iloc[i-1][0],
-                                               df2.iloc[i-1][1],df2.iloc[i][0],
-                                               df2.iloc[i][1])).decode().rstrip('\n'))
+                eta2=s2f(run_sh(AZI.format(df2.iloc[i-1][0],
+                                           df2.iloc[i-1][1],df2.iloc[i][0],
+                                           df2.iloc[i][1])).decode().rstrip('\n'))
             if tt1>eta1 and tt1-eta1>180.: eta1=eta1+360.  #needs to brainstorm for a while, but now it is right
             if eta1>tt1 and eta1-tt1>180. and i>1: eta1=eta1-360.
             if tt2>eta2 and tt2-eta2>180.: eta2=eta2+360.  #i.e. eta1/2 (Course) could be greater than 360
             if eta2>tt2 and eta2-tt2>180. and i>1: eta2=eta2-360.
             #ang=abs(eta2-eta1)  #according to Course (谢等2003描述是转角的叠加,设置CW or CCW为正)
-            ang=s2f(run_sh(GET_SMALLER_ANGLE_REMAINDER.format(eta2,eta1)).decode().rstrip('\n'))
+            ang=s2f(run_sh(SMALLER_ANGLE_REMAINDER.format(eta2,eta1)).decode().rstrip('\n'))
             if ang>180.: ang=360.-ang
             leh=abs(ds1-ds2)
             seg_a_dt=ang*abs(ds1)
@@ -530,18 +530,18 @@ def apwp_dif_azi_without_same_fromp(trj1,trj2,fmt1='textfile',fmt2='textfile'):
             else:
                 ds1=s2f(PMAGPY36().angle((df1.iloc[i-1][0],df1.iloc[i-1][1]),
                                          (df1.iloc[i][0],df1.iloc[i][1])))
-                eta1=s2f(run_sh(GET_AZI.format(df1.iloc[i-1][0],
-                                               df1.iloc[i-1][1],df1.iloc[i][0],
-                                               df1.iloc[i][1])).decode().rstrip('\n'))
+                eta1=s2f(run_sh(AZI.format(df1.iloc[i-1][0],
+                                           df1.iloc[i-1][1],df1.iloc[i][0],
+                                           df1.iloc[i][1])).decode().rstrip('\n'))
             if df2.iloc[i-1][0]==df2.iloc[i][0] and df2.iloc[i-1][1]==df2.iloc[i][1]:
                 ds2=0.
                 eta2=tt2
             else:
                 ds2=s2f(PMAGPY36().angle((df2.iloc[i-1][0],df2.iloc[i-1][1]),
                                          (df2.iloc[i][0],df2.iloc[i][1])))
-                eta2=s2f(run_sh(GET_AZI.format(df2.iloc[i-1][0],
-                                               df2.iloc[i-1][1],df2.iloc[i][0],
-                                               df2.iloc[i][1])).decode().rstrip('\n'))
+                eta2=s2f(run_sh(AZI.format(df2.iloc[i-1][0],
+                                           df2.iloc[i-1][1],df2.iloc[i][0],
+                                           df2.iloc[i][1])).decode().rstrip('\n'))
             if tt1>eta1 and tt1-eta1>180.: eta1+=360.  #needs to brainstorm for a while, but now it should be correct
             if eta1>tt1 and eta1-tt1>180. and i>1: eta1-=360.
             if tt2>eta2 and tt2-eta2>180.: eta2+=360.  #i.e. eta1/2 (Course) can be more than 360
@@ -549,7 +549,7 @@ def apwp_dif_azi_without_same_fromp(trj1,trj2,fmt1='textfile',fmt2='textfile'):
             dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
             #ang=abs(eta2-eta1)  #according to Course (谢等2003描述是转角的叠加,设置CW or CCW为正); Through re-thinking, this is a
             #good solution for closed polygons' comparison, not good for 2 trajectories
-            ang=s2f(run_sh(GET_SMALLER_ANGLE_REMAINDER.format(eta2,eta1)).decode().rstrip('\n'))
+            ang=s2f(run_sh(SMALLER_ANGLE_REMAINDER.format(eta2,eta1)).decode().rstrip('\n'))
             if ang>180.: ang=360.-ang
             leh=abs(ds1-ds2)
             seg_a_dt=ang*dt_
