@@ -2,19 +2,19 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 20Jan2018
+Modified on 22Jan2018
 
 @__author__	:	Chenjian Fu
 @__email__		:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.4.2
+@__version__	:	0.4.3
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
 measuring similarity of spherical paths, especially the paleomagnetic apparent
 polar wander paths (APWPs) of tectonic plates. It is powered by GMT
 (http://gmt.soest.hawaii.edu/) and PmagPy (https://pmagpy.github.io/).
-Copyright (C) 2016-2017 @__author__
+Copyright (C) 2016-2018 @__author__
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,9 +30,16 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
-    Python3 + NumPy + Pandas + (Numba, only if using a NVIDIA graphics card)
-    GMT
+    Python3.6 + NumPy + Pandas + (Numba, only if using a NVIDIA graphics card)
+    GMT + *NIX(-like) Shell
     (PmagPy installation not needed)
+--------------------------------------------------------------------------------
+TODO:
+    0. Lines 595-637 and 644-683 about determining the 3rd point need to be
+       crashed into smaller functions
+    1. Add a func about per-segment sig tests in function "ang_len_dif";
+       edit the corresponding in "apwp_dif_with_ang_len_sig_tests"
+    2. Tidy functions up into classes
 ###--------------------------------------------------------------------------'''
 
 import random,subprocess,os,re,uuid, pandas as pd, numpy as np
@@ -93,9 +100,41 @@ echo "{3}" |tr -s ' '  '\n' |sed 's/\(\[\|\]\)//g;/^[[:space:]]*$/d' >/tmp/tmp2.
 paste /tmp/tmp1.d /tmp/tmp2.d |gmt backtracker -E$p -o0,1 |gmt backtracker -E{0}/{1}/$dir_ex -o0,1
 """
 
+#Source: @__author__, Jan2018
+INTERSECTION_BETW2DIRECTIONAL_GEODESICS="""
+accurac=1E-2
+gmt project -C{0}/{1} -E{2}/{3} -G$accurac -L$accurac/180 > /tmp/half_gc.d
+gmt project -C{4}/{5} -E{6}/{7} -G$accurac -L-180/`gmt math -Q 180 $accurac SUB =` > /tmp/gc.d
+gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |gmtmath STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+"""
+
+#Source: @__author__, Jan2018
+RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC="""
+az1=`gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'`
+az2=`gmt mapproject -Af{0}/{1} -fg -o2 <<< '{4} {5}'`
+a1=`gmt math -Q $az1 360 FMOD -fx --FORMAT_GEO_OUT=D =`
+a2=`gmt math -Q $az2 360 FMOD -fx --FORMAT_GEO_OUT=D =`
+tst=`gmt math -Q $a1 $a2 SUB ABS =`
+if [ $tst -lt 1 ]; then echo 0
+elif [ $tst -gt 179 ]; then echo 1
+else echo 2
+fi
+"""
+
+#Source: @__author__, Jan2018
+POINT_AHEAD_GEODESIC="""
+gcd=`gmt vector -S{0}/{1} -TD -fg <<< "{2} {3}" | gmt math STDIN CEIL 10 ADD =`
+gmt project -C{0}/{1} -E{2}/{3} -G1 -L$gcd/`gmt math -Q 1 $gcd ADD =` | head -n1 |gmtmath STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+"""
+
 def s2f(_x_):
-    """ convert x from str to float                 Source: @__author__, 2016"""
+    """convert x from str to float                  Source: @__author__, 2016"""
     try: return float(_x_)
+    except ValueError: return _x_
+
+def s2i(_x_):
+    """convert x from str to integer             Source: @__author__, Jan2018"""
+    try: return int(_x_)
     except ValueError: return _x_
 
 def txt2df_awk(txt,_h_=None,_c_='>'):
@@ -311,8 +350,9 @@ def btr_(trj,trj2,fmt1='textfile',fmt2='textfile',fna='file'):
             _t_.append(tim)
     return pd.DataFrame({0:o_lo,1:o_la,2:_t_,3:0,4:0,5:0,6:1E8,7:0,8:_t_,9:_t_})  #'dec','inc','age','dm','dp','dm_azi','k','size','possib_loest_age','possib_hiest_age'
 
-def ang_dif_betw2vectors_head2tail(lo1,la1,lo2,la2,lo3,la3):
-    """Angular difference between 2 spherical surface vectors intersecting at
+def ang_dif_betw2suc_disp_gdesics(lo1,la1,lo2,la2,lo3,la3):
+    """Angular difference between 2 successive displacement directional
+    geodesics (lo1,la1)->(lo2,la2) and (lo2,la2)->(lo3,la3) intersecting at
     (lo2,la2)                                       Source: @__author__, 2017"""
     agl=s2f(run_sh(AZI.format(lo2,la2,lo3,la3)).decode().rstrip('\n'))-\
         s2f(run_sh(AZI.format(lo2,la2,lo1,la1)).decode().rstrip('\n'))
@@ -322,76 +362,29 @@ def ang_dif_betw2vectors_head2tail(lo1,la1,lo2,la2,lo3,la3):
     else: agl,sign=360-agl,1
     return (180-abs(agl))*sign
 
-def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile'):
-    """Directional Difference defined using 'course' (accumulative azimuth
-    wrt the very beginning, so it could be beyond 180,360) is different from
-    azimuth                                         Source: @__author__, 2016"""
-    df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
-    df2=trj2 if fmt2=='df' else txt2df_awk(trj2)
-    df1,df2=df1[df1[2].isin(df2[2])],df2[df2[2].isin(df1[2])]  #remove age-unpaired rows in both dataframes
-    len1,len2,tt1,tt2,w_s,w_a=0,0,0,0,1/3,1/3  #len1/2 total length of trj 1/2
-    accum_seg_a,accum_seg_l,accum_seg_a_dt,ma_seg_l,accum_ma_seg_l=0,0,0,0,0  #max of one section length of trj 1&2; accumulative all ma_seg_l
-    n_row=len(df2.index)
-    lst_seg_a,lst_seg_l,lst_accum_seg_a,lst_accum_seg_l=[],[],[],[]
-    lst_accum_seg_a_dt,lst_no,lst_eta1,lst_eta2=[],[],[],[]
-    for i in range(0,n_row):
-        if i==0: ang,seg_a_dt,leh,ds1,ds2,eta1,eta2=0.,0.,0.,0.,0.,0.,0.
-        else:
-            if df1.iloc[i-1][0]==df1.iloc[i][0] and df1.iloc[i-1][1]==df1.iloc[i][1]:
-                ds1=0.
-                eta1=tt1
-            else:
-                ds1=s2f(PMAGPY36().angle((df1.iloc[i-1][0],df1.iloc[i-1][1]),
-                                         (df1.iloc[i][0],df1.iloc[i][1])))
-                eta1=s2f(run_sh(AZI.format(df1.iloc[i-1][0],
-                                           df1.iloc[i-1][1],df1.iloc[i][0],
-                                           df1.iloc[i][1])).decode().rstrip('\n'))
-            if df2.iloc[i-1][0]==df2.iloc[i][0] and df2.iloc[i-1][1]==df2.iloc[i][1]:
-                ds2=0.
-                eta2=tt2
-            else:
-                ds2=s2f(PMAGPY36().angle((df2.iloc[i-1][0],df2.iloc[i-1][1]),
-                                         (df2.iloc[i][0],df2.iloc[i][1])))
-                eta2=s2f(run_sh(AZI.format(df2.iloc[i-1][0],
-                                           df2.iloc[i-1][1],df2.iloc[i][0],
-                                           df2.iloc[i][1])).decode().rstrip('\n'))
-            if tt1>eta1 and tt1-eta1>180.: eta1=eta1+360.  #needs to brainstorm for a while, but now it is right
-            if eta1>tt1 and eta1-tt1>180. and i>1: eta1=eta1-360.
-            if tt2>eta2 and tt2-eta2>180.: eta2=eta2+360.  #i.e. eta1/2 (Course) could be greater than 360
-            if eta2>tt2 and eta2-tt2>180. and i>1: eta2=eta2-360.
-            #ang=abs(eta2-eta1)  #according to Course (谢等2003描述是转角的叠加,设置CW or CCW为正)
-            ang=s2f(run_sh(SMALLER_ANGLE_REMAINDER.format(eta2,eta1)).decode().rstrip('\n'))
-            if ang>180.: ang=360.-ang
-            leh=abs(ds1-ds2)
-            seg_a_dt=ang*abs(ds1)
-            tt1,tt2=eta1,eta2
-        lst_no.append(i)
-        lst_seg_a.append(ang)
-        lst_seg_l.append(leh)
-        accum_seg_a=accum_seg_a+ang  #angular difference
-        accum_seg_l=accum_seg_l+leh  #length difference
-        accum_seg_a_dt=accum_seg_a_dt+seg_a_dt  #Function (9) in Qi16
-        lst_accum_seg_a.append(accum_seg_a)
-        lst_accum_seg_l.append(accum_seg_l)
-        lst_accum_seg_a_dt.append(accum_seg_a_dt)
-        lst_eta1.append(eta1)
-        lst_eta2.append(eta2)
-        len1+=ds1
-        len2+=ds2
-        ma_seg_l=max(ds1,ds2)
-        accum_ma_seg_l+=ma_seg_l
-    divisor_l=accum_ma_seg_l
-    divisor_a=180.*(n_row-1)
-    d_s=btr(trj1,trj2,fmt1,fmt2)  #significant spacial distance/difference
-    #Qi16 functions might referred to Su15
-    print(w_a*accum_seg_a/divisor_a + (1.-w_s-w_a)*accum_seg_l/divisor_l + w_s*d_s)
-    print('Attn: Weights Ws and Wa are {} and {} repectively'.format(w_s,w_a))
-    return pd.DataFrame({'11_ang_seg_dif':lst_seg_a,
-                         '12_ang_seg_dif_accum':lst_accum_seg_a,
-                         '13_ang_seg_dif_dt_accum':lst_accum_seg_a_dt,
-                         '21_len_seg_dif':lst_seg_l,
-                         '22_len_seg_dif_accum':lst_accum_seg_l,'90_no':lst_no,
-                         '91_course1':lst_eta1,'92_course2':lst_eta2})
+def ang_len4_1st_seg(p1x,p1y,p2x,p2y):
+    """Angle change and length calculation for the first segment of APWP (a
+    directional geodesic, point 1 [p1x,p1y] pointing to point 2 [p2x,p2y])
+    Source: @__author__, Jan2018"""
+    #segment angle change, compared to the 1st seg, here itself, so always 0
+    ds1=0. if p1x==p2x and p1y==p2y else s2f(PMAGPY36().angle((p1x,p1y),
+                                                              (p2x,p2y)))  #segment length
+    return 0.,ds1
+
+def ang_len4_2nd_seg(p1x,p1y,p2x,p2y,p3x,p3y,apr):
+    """Angle change and length calculation for the second segment of APWP (a
+    directional geodesic, point 2 [p2x,p2y] pointing to point 3 [p3x,p3y]),
+    compared to the first segment (point 1 [p1x,p1y] pointing to point 2
+    [p2x,p2y]); also regarded as two connected directional geodesics with their
+    intersection located right at point 2 [p2x,p2y]; apr is the angle change of
+    its previous segment, here i.e. the 1st seg  Source: @__author__, Jan2018"""
+    if p2x==p3x and p2y==p3y:
+        eta1=apr
+        ds1=0.
+    else:
+        eta1=ang_dif_betw2suc_disp_gdesics(p1x,p1y,p2x,p2y,p3x,p3y)
+        ds1=s2f(PMAGPY36().angle((p2x,p2y),(p3x,p3y)))
+    return eta1,ds1
 
 def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
     """Derived from function 'apwp_dif'; shape dif includes both angular and
@@ -422,24 +415,24 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
                 eta1=tt1
                 ds1=0.
             else:
-                eta1=ang_dif_betw2vectors_head2tail(df1.iloc[i-1][0],
-                                                    df1.iloc[i-1][1],
-                                                    df1.iloc[i][0],
-                                                    df1.iloc[i][1],
-                                                    df1.iloc[i+1][0],
-                                                    df1.iloc[i+1][1])
+                eta1=ang_dif_betw2suc_disp_gdesics(df1.iloc[i-1][0],
+                                                   df1.iloc[i-1][1],
+                                                   df1.iloc[i][0],
+                                                   df1.iloc[i][1],
+                                                   df1.iloc[i+1][0],
+                                                   df1.iloc[i+1][1])
                 ds1=s2f(PMAGPY36().angle((df1.iloc[i-1][0],df1.iloc[i-1][1]),
                                          (df1.iloc[i][0],df1.iloc[i][1])))
             if df2.iloc[i-1][0]==df2.iloc[i][0] and df2.iloc[i-1][1]==df2.iloc[i][1]:
                 eta2=tt2
                 ds2=0.
             else:
-                eta2=ang_dif_betw2vectors_head2tail(df2.iloc[i-1][0],
-                                                    df2.iloc[i-1][1],
-                                                    df2.iloc[i][0],
-                                                    df2.iloc[i][1],
-                                                    df2.iloc[i+1][0],
-                                                    df2.iloc[i+1][1])
+                eta2=ang_dif_betw2suc_disp_gdesics(df2.iloc[i-1][0],
+                                                   df2.iloc[i-1][1],
+                                                   df2.iloc[i][0],
+                                                   df2.iloc[i][1],
+                                                   df2.iloc[i+1][0],
+                                                   df2.iloc[i+1][1])
                 ds2=s2f(PMAGPY36().angle((df2.iloc[i-1][0],df2.iloc[i-1][1]),
                                          (df2.iloc[i][0],df2.iloc[i][1])))
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
@@ -470,7 +463,185 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
         d_shp_l.append(format(d_shp,'.7f').rstrip('0') if d_shp<.1 else d_shp)
     if whole=='y': return d_shp,s_a,s_l
     else:
-        print('Attn: Weights Wa and Wl are {} and {} repectively'.format(w_a,w_l))
+        print('Attn: For shape dif, weights Ws & Wl are {} and {} repectively'.format(w_a,w_l))
+        return pd.DataFrame({'01_shape_dif':d_shp_l,'11_ang_seg_dif':lst_seg_a,
+                             '12_ang_seg_dif_accum':lst_accum_seg_a,
+                             '13_ang_seg_dif_dt_accum':lst_accum_seg_a_dt,
+                             '14_ang_seg_dif_dt_mean':lst_mean_seg_a_dt,
+                             '21_len_seg_dif':lst_seg_l,
+                             '22_len_seg_dif_accum':lst_accum_seg_l,
+                             '23_len_seg_dif_mean':lst_mean_seg_l,
+                             '33_spa_dif':0,'90_no':lst_no,
+                             '91_course1':lst_eta1,'92_course2':lst_eta2,
+                             '94_tstop':lst_t})
+
+def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
+    """Derived from function 'shape_dif'; applying sig tests seperately on
+    per-segment's angular and length difs; angular difference was originally
+    just azimuth difference, which here is modified to always relative to the
+    1st segment                                  Source: @__author__, Jan2018"""
+    df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
+    df2=trj2 if fmt2=='df' else txt2df_awk(trj2)
+    df1,df2=df1[df1[2].isin(df2[2])],df2[df2[2].isin(df1[2])]  #remove age-unpaired rows in both dataframes
+    w_a,w_l,tt1,tt2,len1,len2=1/2,1/2,0,0,0,0  #tt1/2 intermedium segment azimuth for trj 1/2; len1/2 total length of trj 1/2
+    accum_seg_a,accum_seg_l,accum_seg_a_dt=0,0,0
+    n_row=min(len(df1.index),len(df2.index))
+    lst_seg_a,lst_accum_seg_a,lst_accum_seg_a_dt,lst_mean_seg_a_dt=[],[],[],[]  #directional diff
+    lst_seg_l,lst_accum_seg_l,lst_mean_seg_l=[],[],[]  #segment length diff
+    lst_no,lst_t,lst_eta1,lst_eta2,d_shp_l=[],[],[],[],[]
+    for i in range(0,n_row):
+        #store 0s in the row for the 1st pole, cuz for the 1st pole, only 1, angle, length and their dif have no meaning except only spacial dif
+        if i==0:
+            eta1,eta2,ang,ds1,ds2,leh=0.,0.,0.,0.,0.,0.  #ds1/2 intermedium segment GCD for trj 1/2
+            dt_,seg_a_dt=abs(df1.iloc[i+1][2]-df1.iloc[i][2]),0.  #what it is doesn't matter
+        #store angle change, ang dif, length, len dif of the 1st segment in the row for the 2nd pole
+        elif i==1:
+            eta1,ds1=ang_len4_1st_seg(df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                      df1.iloc[i][0],df1.iloc[i][1])
+            eta2,ds2=ang_len4_1st_seg(df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                      df2.iloc[i][0],df2.iloc[i][1])
+            ang=0 #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
+            leh=abs(ds1-ds2)
+            dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
+            seg_a_dt=ang*dt_
+            tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
+        elif i==2:
+            eta1,ds1=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],
+                                      df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                      df1.iloc[i][0],df1.iloc[i][1],tt1)
+            eta2,ds2=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],
+                                      df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                      df2.iloc[i][0],df2.iloc[i][1],tt2)
+            ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
+            leh=abs(ds1-ds2)
+            dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
+            seg_a_dt=ang*dt_
+            tt1,tt2=eta1,eta2
+        else:
+            if df1.iloc[i-1][0]==df1.iloc[i][0] and df1.iloc[i-1][1]==df1.iloc[i][1]:
+                eta1=tt1
+                ds1=0.
+            else:
+                is1=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESICS.format(df1.iloc[0][0],
+                                                                          df1.iloc[0][1],
+                                                                          df1.iloc[1][0],
+                                                                          df1.iloc[1][1],
+                                                                          df1.iloc[i-1][0],
+                                                                          df1.iloc[i-1][1],
+                                                                          df1.iloc[i][0],
+                                                                          df1.iloc[i][1]))  #see more info from https://pyformat.info/
+                lc1=re.split(r'\t+',is1.decode("utf-8").rstrip('\n'))
+                lc1x,lc1y=s2f(lc1[0]),s2f(lc1[1])
+                i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(df1.iloc[i-1][0],
+                                                                              df1.iloc[i-1][1],
+                                                                              df1.iloc[i][0],
+                                                                              df1.iloc[i][1],
+                                                                              lc1x,
+                                                                              lc1y)).decode().rstrip('\n'))
+                #in case the intersection is the same as or extremely close to the starting point of the next geodesic
+                if s2f(PMAGPY36().angle((df1.iloc[i-1][0],df1.iloc[i-1][1]),(lc1x,lc1y)))<1E-2:
+                    #2nd point is pole long/lat (the right one of two intersections)
+                    eta1=ang_dif_betw2suc_disp_gdesics(df1.iloc[0][0],
+                                                       df1.iloc[0][1],
+                                                       lc1x,lc1y,df1.iloc[i][0],
+                                                       df1.iloc[i][1])
+                #determine the relative location of the intersection to the next geodesic
+                else:
+                    if i2n==0:
+                        hd1=run_sh(POINT_AHEAD_GEODESIC.format(df1.iloc[i-1][0],
+                                                               df1.iloc[i-1][1],
+                                                               lc1x,lc1y))
+                        p31=re.split(r'\t+',hd1.decode("utf-8").rstrip('\n'))
+                        eta1=ang_dif_betw2suc_disp_gdesics(df1.iloc[0][0],
+                                                           df1.iloc[0][1],
+                                                           lc1x,lc1y,
+                                                           s2f(p31[0]),
+                                                           s2f(p31[1]))
+                    elif i2n==1:
+                        #2nd point is pole long/lat (the right one of two intersections)
+                        eta1=ang_dif_betw2suc_disp_gdesics(df1.iloc[0][0],
+                                                           df1.iloc[0][1],
+                                                           lc1x,lc1y,
+                                                           df1.iloc[i-1][0],
+                                                           df1.iloc[i-1][1])
+                    else: print("Path1: Something except the 2 situations 0deg or 180deg happened. We better have a look at function RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.")
+                ds1=s2f(PMAGPY36().angle((df1.iloc[i-1][0],df1.iloc[i-1][1]),
+                                         (df1.iloc[i][0],df1.iloc[i][1])))
+            if df2.iloc[i-1][0]==df2.iloc[i][0] and df2.iloc[i-1][1]==df2.iloc[i][1]:
+                eta2=tt2
+                ds2=0.
+            else:
+                is2=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESICS.format(df2.iloc[0][0],
+                                                                          df2.iloc[0][1],
+                                                                          df2.iloc[1][0],
+                                                                          df2.iloc[1][1],
+                                                                          df2.iloc[i][0],
+                                                                          df2.iloc[i][1],
+                                                                          df2.iloc[i+1][0],
+                                                                          df2.iloc[i+1][1]))
+                lc2=re.split(r'\t+',is2.decode("utf-8").rstrip('\n'))
+                lc2x,lc2y=s2f(lc2[0]),s2f(lc2[1])
+                i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(df2.iloc[i-1][0],
+                                                                              df2.iloc[i-1][1],
+                                                                              df2.iloc[i][0],
+                                                                              df2.iloc[i][1],
+                                                                              lc2x,
+                                                                              lc2y)).decode().rstrip('\n'))
+                if s2f(PMAGPY36().angle((df2.iloc[i-1][0],df2.iloc[i-1][1]),(lc2x,lc2y)))<1E-2:
+                    eta2=ang_dif_betw2suc_disp_gdesics(df2.iloc[0][0],
+                                                       df2.iloc[0][1],
+                                                       lc2x,lc2y,
+                                                       df2.iloc[i][0],
+                                                       df2.iloc[i][1])
+                else:
+                    if i2n==0:
+                        hd2=run_sh(POINT_AHEAD_GEODESIC.format(df2.iloc[i-1][0],
+                                                               df2.iloc[i-1][1],
+                                                               lc2x,lc2y))
+                        p32=re.split(r'\t+',hd2.decode("utf-8").rstrip('\n'))
+                        eta2=ang_dif_betw2suc_disp_gdesics(df2.iloc[0][0],
+                                                           df2.iloc[0][1],
+                                                           lc2x,lc2y,
+                                                           s2f(p32[0]),
+                                                           s2f(p32[1]))
+                    elif i2n==1:
+                        eta2=ang_dif_betw2suc_disp_gdesics(df2.iloc[0][0],
+                                                           df2.iloc[0][1],
+                                                           lc2x,lc2y,
+                                                           df2.iloc[i-1][0],
+                                                           df2.iloc[i-1][1])
+                    else: print("Path2: Something except the 2 situations 0deg or 180deg happened. We better have a look at function RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.")
+                ds2=s2f(PMAGPY36().angle((df2.iloc[i-1][0],df2.iloc[i-1][1]),
+                                         (df2.iloc[i][0],df2.iloc[i][1])))
+            ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
+            leh=abs(ds1-ds2)
+            dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
+            seg_a_dt=ang*dt_
+            tt1,tt2=eta1,eta2
+        lst_eta1.append(eta1)
+        lst_eta2.append(eta2)
+        len1+=ds1
+        len2+=ds2
+        lst_no.append(i)
+        lst_t.append(df1.iloc[i][2])  #because that df1&2 ages are synchronized is required here, so df2.iloc[i][2] is also ok
+        lst_seg_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
+        accum_seg_a+=ang  #angular difference
+        accum_seg_a_dt+=seg_a_dt  #similar to function (9) in Qi16
+        lst_seg_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+        accum_seg_l+=leh  #length difference
+        (mean_seg_a_dt,mean_seg_l)=(0.,0.) if i==0 else (accum_seg_a_dt/abs(df1.iloc[i][2]-df1.iloc[0][2]),accum_seg_l/abs(df1.iloc[i][2]-df1.iloc[0][2]))
+        lst_accum_seg_a.append(accum_seg_a)
+        lst_accum_seg_a_dt.append(accum_seg_a_dt)
+        lst_mean_seg_a_dt.append(mean_seg_a_dt)
+        lst_accum_seg_l.append(accum_seg_l)
+        lst_mean_seg_l.append(mean_seg_l)
+        divisor_l=PLATE_V_MAX_PAST/11.1195051975  #i.e. about 2.7 degree/myr, magnitude of velocity
+        s_a,s_l=mean_seg_a_dt/POL_WAND_DIR_DIF_MAX,mean_seg_l/divisor_l
+        d_shp=0. if i==0 else w_a*s_a+w_l*s_l
+        d_shp_l.append(format(d_shp,'.7f').rstrip('0') if d_shp<.1 else d_shp)
+    if whole=='y': return d_shp,s_a,s_l
+    else:
+        print('Attn: For shape dif, weights Ws & Wl are {} and {} repectively'.format(w_a,w_l))
         return pd.DataFrame({'01_shape_dif':d_shp_l,'11_ang_seg_dif':lst_seg_a,
                              '12_ang_seg_dif_accum':lst_accum_seg_a,
                              '13_ang_seg_dif_dt_accum':lst_accum_seg_a_dt,
@@ -577,7 +748,7 @@ def apwp_dif_azi_without_same_fromp(trj1,trj2,fmt1='textfile',fmt2='textfile'):
         dif=0. if i==0 else w_a*mean_seg_a_dt/POL_WAND_DIR_DIF_MAX+(1.-w_s-w_a)*mean_seg_l/divisor_l+w_s*d_s
         #Qi16 functions might referred to Su15
         lst_d.append(dif)
-    print('Attn: Weights Ws and Wa are {} and {} repectively'.format(w_s,w_a))
+    print('Attn: For total dif, weights Ws & Wa are {} and {} repectively'.format(w_s,w_a))
     return pd.DataFrame({'00_dif':lst_d,'11_ang_seg_dif':lst_seg_a,
                          '12_ang_seg_dif_accum':lst_accum_seg_a,
                          '13_ang_seg_dif_dt_accum':lst_accum_seg_a_dt,
@@ -630,24 +801,24 @@ def apwp_dif(trj1,trj2,fmt1='textfile',fmt2='textfile'):
             else:
                 ds1=s2f(PMAGPY36().angle((df1.iloc[i-1][0],df1.iloc[i-1][1]),
                                          (df1.iloc[i][0],df1.iloc[i][1])))
-                eta1=ang_dif_betw2vectors_head2tail(df1.iloc[i-1][0],
-                                                    df1.iloc[i-1][1],
-                                                    df1.iloc[i][0],
-                                                    df1.iloc[i][1],
-                                                    df1.iloc[i+1][0],
-                                                    df1.iloc[i+1][1])
+                eta1=ang_dif_betw2suc_disp_gdesics(df1.iloc[i-1][0],
+                                                   df1.iloc[i-1][1],
+                                                   df1.iloc[i][0],
+                                                   df1.iloc[i][1],
+                                                   df1.iloc[i+1][0],
+                                                   df1.iloc[i+1][1])
             if df2.iloc[i-1][0]==df2.iloc[i][0] and df2.iloc[i-1][1]==df2.iloc[i][1]:
                 ds2=0.
                 eta2=tt2
             else:
                 ds2=s2f(PMAGPY36().angle((df2.iloc[i-1][0],df2.iloc[i-1][1]),
                                          (df2.iloc[i][0],df2.iloc[i][1])))
-                eta2=ang_dif_betw2vectors_head2tail(df2.iloc[i-1][0],
-                                                    df2.iloc[i-1][1],
-                                                    df2.iloc[i][0],
-                                                    df2.iloc[i][1],
-                                                    df2.iloc[i+1][0],
-                                                    df2.iloc[i+1][1])
+                eta2=ang_dif_betw2suc_disp_gdesics(df2.iloc[i-1][0],
+                                                   df2.iloc[i-1][1],
+                                                   df2.iloc[i][0],
+                                                   df2.iloc[i][1],
+                                                   df2.iloc[i+1][0],
+                                                   df2.iloc[i+1][1])
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)
             dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
@@ -675,7 +846,7 @@ def apwp_dif(trj1,trj2,fmt1='textfile',fmt2='textfile'):
         lst_d_s.append(d_s)
         dif=0. if i==0 else w_a*mean_seg_a_dt/POL_WAND_DIR_DIF_MAX+(1.-w_s-w_a)*mean_seg_l/divisor_l+w_s*d_s
         lst_d.append(format(dif,'.7f').rstrip('0') if dif<.1 else dif)
-    print('Attn: Weights Ws and Wa are {} and {} repectively'.format(w_s,w_a))
+    print('Attn: For total dif, weights Ws & Wa are {} and {} repectively'.format(w_s,w_a))
     return pd.DataFrame({'00_dif':lst_d,'11_ang_seg_dif':lst_seg_a,
                          '12_ang_seg_dif_accum':lst_accum_seg_a,
                          '13_ang_seg_dif_dt_accum':lst_accum_seg_a_dt,
@@ -688,8 +859,45 @@ def apwp_dif(trj1,trj2,fmt1='textfile',fmt2='textfile'):
                          '94_tstop':lst_t})
 
 def apwp_dif_with_shape_sig_test(trj1,trj2,fmt1='textfile',fmt2='textfile',lag=0,hag=530):
-    """Initial angular difference was just azimuth dif, and here is modified
+    """For each path, directional change of each segment is from this segment's
+    previous segment; shape_sig_test is based on whole path comparison
     Source: @__author__ and Chris Rowan, 2016-2017"""
+    filname1=re.split('/|\.',trj1)[-2] if fmt1=='textfile' else str(uuid.uuid4())
+    filname2=re.split('/|\.',trj2)[-2] if fmt2=='textfile' else str(uuid.uuid4())
+    df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
+    df2=trj2 if fmt2=='df' else txt2df_awk(trj2)
+    df1,df2=df1[(df1[2].isin(df2[2])) & (df1[2]>=lag) & (df1[2]<=hag)],df2[(df2[2].isin(df1[2])) & (df2[2]>=lag) & (df2[2]<=hag)]  #remove age-unpaired rows in both dataframes
+    df_space_score=btr(df1,df2,fmt1='df',fmt2='df',fn1=filname1,fn2=filname2)  #significant spacial distance/difference
+    w_s,w_a=1/3,1/3
+    n_row=min(len(df1.index),len(df2.index))
+    lst_no,lst_t0,lst_t,lst_d_s,lst_d_a,lst_d_l,lst_d=[],[],[],[],[],[],[]
+    lst_d_a_tested,lst_d_l_tested=[],[]
+    print("Dspa\tDang\tDangT\tDlen\tDlenT\tTstart(Ma)\tTstop(Ma)")
+    inc=n_row-1  #1(can be invisible) 2 ...; n_row-1 makes the measurement once on whole path
+    for i in range(0,n_row,inc):
+        lst_no.append(i)
+        lst_t0.append(df1.iloc[0][2])
+        lst_t.append(df1.iloc[i][2])  #because that df1 ages and df2 ages are synchronized is required here, so df2.iloc[i][2] is also ok
+        (d_a_tested,d_l_tested,d_a,d_l)=(0.,0.,0.,0.) if i==0 else sig_test_shape_dif(df1.iloc[0:i+1],df2.iloc[0:i+1],fmt1='df',fmt2='df',fn1=filname1,fn2=filname2)
+        d_s=1.-df_space_score.loc[0:i,"31_spa_pol_dif"].sum()/(i+1)  #path space difference
+        lst_d_a.append(d_a)
+        lst_d_a_tested.append(d_a_tested)
+        lst_d_l.append(d_l)
+        lst_d_l_tested.append(d_l_tested)
+        lst_d_s.append(d_s)
+        dif=0. if i==0 else w_s*d_s+w_a*d_a+(1-w_s-w_a)*d_l
+        lst_d.append(format(dif,'.7f').rstrip('0') if dif<.1 else dif)
+        if i>0: print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}".format(d_s,d_a,d_a_tested,d_l,d_l_tested,df1.iloc[0][2],df1.iloc[i][2]))
+    print('Attn: For total dif, weights Ws & Wa are {} and {} repectively'.format(w_s,w_a))
+    return pd.DataFrame({'00_dif':lst_d,'33_spa_dif':lst_d_s,
+                         '34_ang_dif':lst_d_a,'35_len_dif':lst_d_l,
+                         '36_ang_dif_tested':lst_d_a_tested,
+                         '37_len_dif_tested':lst_d_l_tested,
+                         '90_no':lst_no,'93_tstart':lst_t0,'94_tstop':lst_t})
+
+def apwp_dif_with_ang_len_sig_tests(trj1,trj2,fmt1='textfile',fmt2='textfile',lag=0,hag=530):
+    """Derived from function "apwp_dif_with_shape_sig_test"
+    Source: @__author__ and Chris Rowan, Jan2018"""
     filname1=re.split('/|\.',trj1)[-2] if fmt1=='textfile' else str(uuid.uuid4())
     filname2=re.split('/|\.',trj2)[-2] if fmt2=='textfile' else str(uuid.uuid4())
     df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
@@ -716,7 +924,7 @@ def apwp_dif_with_shape_sig_test(trj1,trj2,fmt1='textfile',fmt2='textfile',lag=0
         dif=0. if i==0 else w_s*d_s+w_a*d_a+(1-w_s-w_a)*d_l
         lst_d.append(format(dif,'.7f').rstrip('0') if dif<.1 else dif)
         if i>0: print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}".format(d_s,d_a,d_a_tested,d_l,d_l_tested,df1.iloc[0][2],df1.iloc[i][2]))
-    print('Attn: Weights Ws and Wa are {} and {} repectively'.format(w_s,w_a))
+    print('Attn: For total dif, weights Ws & Wa are {} and {} repectively'.format(w_s,w_a))
     return pd.DataFrame({'00_dif':lst_d,'33_spa_dif':lst_d_s,
                          '34_ang_dif':lst_d_a,'35_len_dif':lst_d_l,
                          '36_ang_dif_tested':lst_d_a_tested,
