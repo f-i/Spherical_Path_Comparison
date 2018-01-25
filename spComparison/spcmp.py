@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 23Jan2018
+Modified on 24Jan2018
 
 @__author__	:	Chenjian Fu
-@__email__		:	cfu3@kent.edu
+@__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.4.4
+@__version__	:	0.4.5
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -34,7 +34,7 @@ Environment:
     GMT + *NIX(-like) Shell                     (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
-    1. Add functions for per-segment sig tests in function "ang_len_dif";
+    1. Tidy subsections up for per-segment sig tests in function "ang_len_dif";
        edit the corresponding in "apwp_dif_with_ang_len_sig_tests"
     2. Tidy functions up into classes
 ###--------------------------------------------------------------------------'''
@@ -102,17 +102,17 @@ INTERSECTION_BETW2DIRECTIONAL_GEODESICS="""
 accurac=1E-2
 gmt project -C{0}/{1} -E{2}/{3} -G$accurac -L$accurac/180 > /tmp/half_gc.d
 gmt project -C{4}/{5} -E{6}/{7} -G$accurac -L-180/`gmt math -Q 180 $accurac SUB =` > /tmp/gc.d
-gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |head -n1 |gmtmath STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |head -n1 |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
 
 #Source: @__author__, Jan2018
 INTERSECTION_BETW2DIRECTIONAL_GEODESI2S="""
-gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |sed '/^\s*$/d' |sed '2q;d' |gmtmath STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |sed '/^\s*$/d' |sed '2q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
 
 #Source: @__author__, Jan2018
 INTERSECTION_BETW2DIRECTIONAL_GEODESI3S="""
-gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |sed '/^\s*$/d' |sed '3q;d' |gmtmath STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |sed '/^\s*$/d' |sed '3q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
 
 #Source: @__author__, Jan2018
@@ -257,7 +257,7 @@ def common_dir_elliptical(po1,po2,dros=1000,bootsteps=5000,fn1='file1',fn2='file
     #return pd.Series([_o_,_a_[0]],index=['Outcome','angle'])
     return _o_,_a_[0]
 
-def common_dir_elliptical_1gen(point,folder='traj1'):
+def common_dir_ellip1gen(point,folder='traj1'):
     """derived from func 'common_dir_elliptical' Source: @__author__, Nov2017"""
     if point.N>25:
         os.makedirs(os.path.join('/tmp',folder),exist_ok=True)
@@ -276,6 +276,14 @@ def common_dir_elliptical_1gen(point,folder='traj1'):
         lon,lat=ellipsenrmdev_1gen(point.Lon,point.Lat,point.Az,
                                    point.Major,point.Minor)
     return lon,lat
+
+def fpars2rand_pt_in_ellip4_1pol(dec,inc,tim,maj,mio,azi,kap,_n_,folder='traj1'):
+    """Given fisher parameters of one pole, output a randome point in this
+    pole's error ellipse                         Source: @__author__, Jan2018"""
+    return common_dir_ellip1gen(pd.Series([dec,inc,tim,maj,mio,azi,kap,_n_],
+                                          index=['Lon','Lat','Age','Major',
+                                                 'Minor','Az','kappa','N']),
+                                folder)
 
 def btr(trj1,trj2,fmt1='textfile',fmt2='textfile',fn1='file1',fn2='file2'):
     """Source: @__author__, 2016-2017"""
@@ -344,13 +352,11 @@ def btr_(trj,trj2,fmt1='textfile',fmt2='textfile',fna='file'):
         if not lin.startswith(">"):
             #split each line on space to get records
             rec=lin.split('\t') if '\t' in lin else lin.split()
-            dec,inc,tim,maj,mio,azi,kap,_n_=s2f(rec[0]),s2f(rec[1]),s2f(rec[2]),\
-                                            s2f(rec[3]),s2f(rec[4]),s2f(rec[5]),\
-                                            s2f(rec[6]),int(rec[7])
-            pl1=pd.Series([dec,inc,tim,maj,mio,azi,kap,_n_,'green'],
-                          index=['Lon','Lat','Age','Major','Minor',
-                                 'Az','kappa','N','PointColor'])
-            lon,lat=common_dir_elliptical_1gen(pl1,folder=fna)
+            tim=s2f(rec[2])
+            lon,lat=fpars2rand_pt_in_ellip4_1pol(s2f(rec[0]),s2f(rec[1]),
+                                                 tim,s2f(rec[3]),s2f(rec[4]),
+                                                 s2f(rec[5]),s2f(rec[6]),
+                                                 int(rec[7]),folder=fna)
             o_lo.append(lon)
             o_la.append(lat)
             _t_.append(tim)
@@ -545,6 +551,8 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
     per-segment's angular and length difs; angular difference was originally
     just azimuth difference, which here is modified to always relative to the
     1st segment                                  Source: @__author__, Jan2018"""
+    filname1=re.split('/|\.',trj1)[-2] if fmt1=='textfile' else str(uuid.uuid4())
+    filname2=re.split('/|\.',trj2)[-2] if fmt2=='textfile' else str(uuid.uuid4())
     df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
     df2=trj2 if fmt2=='df' else txt2df_awk(trj2)
     df1,df2=df1[df1[2].isin(df2[2])],df2[df2[2].isin(df1[2])]  #remove age-unpaired rows in both dataframes
@@ -567,6 +575,37 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
                                       df2.iloc[i][0],df2.iloc[i][1])
             ang=0 #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)
+            #-----------------------------START--------------------------------#
+            lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
+            for _ in np.arange(1000):
+                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
+                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
+                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
+                                                     folder=filname1)
+                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
+                                                     df1.iloc[i][2],df1.iloc[i][3],
+                                                     df1.iloc[i][4],df1.iloc[i][5],
+                                                     df1.iloc[i][6],df1.iloc[i][7],
+                                                     folder=filname1)
+                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
+                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
+                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
+                                                     folder=filname2)
+                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
+                                                     df2.iloc[i][2],df2.iloc[i][3],
+                                                     df2.iloc[i][4],df2.iloc[i][5],
+                                                     df2.iloc[i][6],df2.iloc[i][7],
+                                                     folder=filname2)
+                _,ds1r=ang_len4_1st_seg(a1x,a1y,a2x,a2y)
+                _,ds2r=ang_len4_1st_seg(b1x,b1y,b2x,b2y)
+                lst_d_leh_a_ras.append(ds1r-ds1)
+                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+            _u_=np.percentile(lst_d_leh_a_ras,97.5)
+            _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
+            if _u_>_l_: leh=0.
+            #------------------------------END---------------------------------#
             dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
             seg_a_dt=ang*dt_
             tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
@@ -579,6 +618,42 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
                                       df2.iloc[i][0],df2.iloc[i][1],tt2)
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)
+            #-----------------------------START--------------------------------#
+            lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
+            for _ in np.arange(1000):
+                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
+                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
+                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
+                                                     folder=filname1)
+                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
+                                                     df1.iloc[i][2],df1.iloc[i][3],
+                                                     df1.iloc[i][4],df1.iloc[i][5],
+                                                     df1.iloc[i][6],df1.iloc[i][7],
+                                                     folder=filname1)
+                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
+                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
+                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
+                                                     folder=filname2)
+                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
+                                                     df2.iloc[i][2],df2.iloc[i][3],
+                                                     df2.iloc[i][4],df2.iloc[i][5],
+                                                     df2.iloc[i][6],df2.iloc[i][7],
+                                                     folder=filname2)
+                eta1r,ds1r=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],a1x,a1y,a2x,a2y,tt1)
+                eta2r,ds2r=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],b1x,b1y,b2x,b2y,tt2)
+                lst_d_ang_a_ras.append(eta1r-eta1)
+                lst_d_ang_ras_rbs.append(eta2r-eta1r)
+                lst_d_leh_a_ras.append(ds1r-ds1)
+                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+            au_=np.percentile(lst_d_ang_a_ras,97.5)
+            al_=np.percentile(lst_d_ang_ras_rbs,2.5)
+            if au_>al_: ang=0.
+            lu_=np.percentile(lst_d_leh_a_ras,97.5)
+            ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
+            if lu_>ll_: leh=0.
+            #------------------------------END---------------------------------#
             dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
             seg_a_dt=ang*dt_
             tt1,tt2=eta1,eta2
@@ -593,6 +668,46 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
                                        df2.iloc[i][0],df2.iloc[i][1],tt2)
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)
+            #-----------------------------START--------------------------------#
+            lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
+            for _ in np.arange(1000):
+                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
+                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
+                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
+                                                     folder=filname1)
+                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
+                                                     df1.iloc[i][2],df1.iloc[i][3],
+                                                     df1.iloc[i][4],df1.iloc[i][5],
+                                                     df1.iloc[i][6],df1.iloc[i][7],
+                                                     folder=filname1)
+                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
+                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
+                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
+                                                     folder=filname2)
+                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
+                                                     df2.iloc[i][2],df2.iloc[i][3],
+                                                     df2.iloc[i][4],df2.iloc[i][5],
+                                                     df2.iloc[i][6],df2.iloc[i][7],
+                                                     folder=filname2)
+                eta1r,ds1r=ang_len4ge3rd_seg(df1.iloc[0][0],df1.iloc[0][1],
+                                             df1.iloc[1][0],df1.iloc[1][1],
+                                             a1x,a1y,a2x,a2y,tt1)
+                eta2r,ds2r=ang_len4ge3rd_seg(df2.iloc[0][0],df2.iloc[0][1],
+                                             df2.iloc[1][0],df2.iloc[1][1],
+                                             b1x,b1y,b2x,b2y,tt2)
+                lst_d_ang_a_ras.append(eta1r-eta1)
+                lst_d_ang_ras_rbs.append(eta2r-eta1r)
+                lst_d_leh_a_ras.append(ds1r-ds1)
+                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+            au_=np.percentile(lst_d_ang_a_ras,97.5)
+            al_=np.percentile(lst_d_ang_ras_rbs,2.5)
+            if au_>al_: ang=0.
+            lu_=np.percentile(lst_d_leh_a_ras,97.5)
+            ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
+            if lu_>ll_: leh=0.
+            #------------------------------END---------------------------------#
             dt_=abs(df1.iloc[i][2]-df1.iloc[i-1][2])
             seg_a_dt=ang*dt_
             tt1,tt2=eta1,eta2
@@ -615,6 +730,7 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
         lst_mean_seg_l.append(mean_seg_l)
         divisor_l=PLATE_V_MAX_PAST/11.1195051975  #i.e. about 2.7 degree/myr, magnitude of velocity
         s_a,s_l=mean_seg_a_dt/POL_WAND_DIR_DIF_MAX,mean_seg_l/divisor_l
+        print("{0}\t{1}\t{2}\t{3}\t{4}".format(i,ang,leh,s_a,s_l))
     if whole=='y': return s_a,s_l
     else:
         return pd.DataFrame({'11_ang_seg_dif':lst_seg_a,
