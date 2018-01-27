@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 24Jan2018
+Modified on 26Jan2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.4.5
+@__version__	:	0.4.6
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -30,7 +30,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
-    Python3.6 + NumPy + Pandas + (Numba, only if using a NVIDIA graphics card)
+    Python3.6.x + NumPy + Pandas + (Numba, only if using a NVIDIA graphics card)
     GMT + *NIX(-like) Shell                     (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
@@ -100,19 +100,23 @@ paste /tmp/tmp1.d /tmp/tmp2.d |gmt backtracker -E$p -o0,1 |gmt backtracker -E{0}
 #Source: @__author__, Jan2018
 INTERSECTION_BETW2DIRECTIONAL_GEODESICS="""
 accurac=1E-2
-gmt project -C{0}/{1} -E{2}/{3} -G$accurac -L$accurac/180 > /tmp/half_gc.d
-gmt project -C{4}/{5} -E{6}/{7} -G$accurac -L-180/`gmt math -Q 180 $accurac SUB =` > /tmp/gc.d
-gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |head -n1 |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+accura2=1E-3
+if [ ! -f /tmp/{8}.d ]; then
+gmt project -C{0}/{1} -E{2}/{3} -G$accurac -L-180/180 > /tmp/{8}.d
+fi
+gmt project -C{6}/{7} -E{4}/{5} -G$accura2 -L$accura2/.009 > /tmp/half.gc
+gmt project -C{6}/{7} -E{4}/{5} -G$accurac -L$accurac/180 >> /tmp/half.gc
+gmt spatial /tmp/{8}.d /tmp/half.gc -Ie -Fl |head -n1 |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
 
 #Source: @__author__, Jan2018
 INTERSECTION_BETW2DIRECTIONAL_GEODESI2S="""
-gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |sed '/^\s*$/d' |sed '2q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt spatial /tmp/{0}.d /tmp/half.gc -Ie -Fl |sed '/^\s*$/d' |sed '2q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
 
 #Source: @__author__, Jan2018
 INTERSECTION_BETW2DIRECTIONAL_GEODESI3S="""
-gmt spatial /tmp/half_gc.d /tmp/gc.d -Ie -Fl |sed '/^\s*$/d' |sed '3q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt spatial /tmp/{0}.d /tmp/half.gc -Ie -Fl |sed '/^\s*$/d' |sed '3q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
 
 #Source: @__author__, Jan2018
@@ -397,7 +401,7 @@ def ang_len4_2nd_seg(p1x,p1y,p2x,p2y,p3x,p3y,apr):
         leh=s2f(PMAGPY36().angle((p2x,p2y),(p3x,p3y)))
     return agc,leh
 
-def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan):
+def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
     """Angle change calculation for 2 SEPARATE directional geodesics, which are
     (lo1,la1)->(lo2,la2) and (lom,lam)->(lon,lan), so note that the two
     geodesics DO NOT intersect at any of these four end points.
@@ -407,53 +411,55 @@ def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan):
     the 3rd point in the right direction of the next geodesic.
     Source: @__author__, Jan2018"""
     ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESICS.format(lo1,la1,lo2,la2,
-                                                              lom,lam,lon,lan))  #see more info from https://pyformat.info/
+                                                              lom,lam,lon,lan,
+                                                              filname))  #see more info from https://pyformat.info/
     lca=re.split(r'\t+',ise.decode("utf-8").rstrip('\n'))
     lcx,lcy=s2f(lca[0]),s2f(lca[1])
-    i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lom,lam,lon,
-                                                                  lan,lcx,
+    i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
+                                                                  la2,lcx,
                                                                   lcy)).decode().rstrip('\n'))
     if i2n not in (0, 1):
-        ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESI2S.format(lo1,la1,lo2,la2,
-                                                                  lom,lam,lon,lan))
+        ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESI2S.format(filname))
         lca=re.split(r'\t+',ise.decode("utf-8").rstrip('\n'))
-        lcx,lcy=s2f(lca[0]),s2f(lca[1])
-        i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lom,lam,lon,
-                                                                      lan,lcx,
-                                                                      lcy)).decode().rstrip('\n'))
+        if lca[0] and lca[1]:
+            lcx,lcy=s2f(lca[0]),s2f(lca[1])
+            i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
+                                                                          la2,lcx,
+                                                                          lcy)).decode().rstrip('\n'))
+        else: print(lo1,la1,lo2,la2,lom,lam,lon,lan)
     if i2n not in (0, 1):
-        ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESI3S.format(lo1,la1,lo2,la2,
-                                                                  lom,lam,lon,lan))
+        ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESI3S.format(filname))
         lca=re.split(r'\t+',ise.decode("utf-8").rstrip('\n'))
-        lcx,lcy=s2f(lca[0]),s2f(lca[1])
-        i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lom,lam,lon,
-                                                                      lan,lcx,
-                                                                      lcy)).decode().rstrip('\n'))
+        if lca[0] and lca[1]:
+            lcx,lcy=s2f(lca[0]),s2f(lca[1])
+            i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
+                                                                          la2,lcx,
+                                                                          lcy)).decode().rstrip('\n'))
+        else: print(lo1,la1,lo2,la2,lom,lam,lon,lan)
     if i2n not in (0, 1):
-        print('Angle is{0}, Points are {1},{2},{3},{4},{5},{6},{7},{8}'.format(i2n,lo1,la1,lo2,la2,lom,lam,lon,lan))
-    #in case the intersection is the same as or extremely close to the starting point of the next geodesic
-    if s2f(PMAGPY36().angle((lom,lam),(lcx,lcy)))<1E-2:
-        #2nd point is pole long/lat (the right one of two intersections)
+        print('Angle:{0} Points:{1},{2},{3},{4},{5},{6},{7},{8}'.format(i2n,lo1,la1,lo2,la2,lom,lam,lon,lan))
+    #in case the intersection is the same as or extremely close to the arrow point of the 1st geodesic
+    if s2f(PMAGPY36().angle((lo2,la2),(lcx,lcy)))<1E-2:
+        #2nd point is pole long/lat (the correct one of two intersections)
         agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,lon,lan)
-    #determine the relative location of the intersection to the next geodesic
+    #determine the relative location of the intersection to the 1st geodesic
     else:
-        if i2n==0:
-            hd1=run_sh(POINT_AHEAD_GEODESIC.format(lom,lam,lcx,lcy))
+        if i2n==0: agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,lon,lan)
+        elif i2n==1:
+            hd1=run_sh(POINT_AHEAD_GEODESIC.format(lo1,la1,lcx,lcy))  #must be lo1,la1
             p31=re.split(r'\t+',hd1.decode("utf-8").rstrip('\n'))
-            agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,s2f(p31[0]),
-                                             s2f(p31[1]))
-        #2nd point is pole long/lat (the right one of two intersections)
-        elif i2n==1: agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,lom,lam)
-        else: print("Angle betw CD(next segment)&CI(starting point of next seg pointing to intersection) {0} ShouldBe 0°/180°. Check func RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.".format(i2n))
+            agl=ang4_2suc_disp_direc_gdesics(s2f(p31[0]),s2f(p31[1]),lcx,lcy,
+                                             lon,lan)
+        else: print("Angle betw AB(1st segment)&AI(1st seg starting point to intersection) {0} ShouldBe 0°or180°.".format(i2n))
     return agl
 
-def ang_len4ge3rd_seg(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,apr):
+def ang_len4ge3rd_seg(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,apr,filname):
     """Angle change and length calculation for the third and any later segment
     of APWP (Seg No is greater than or equal to 3); apr is the angle change of
     its previous segment                         Source: @__author__, Jan2018"""
     if pmx==pnx and pmy==pny: agc,leh=apr,0.
     else:
-        agc=ang4_2sep_direc_gdesics(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny)
+        agc=ang4_2sep_direc_gdesics(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,filname)
         leh=s2f(PMAGPY36().angle((pmx,pmy),(pnx,pny)))
     return agc,leh
 
@@ -562,7 +568,7 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
     lst_seg_a,lst_accum_seg_a,lst_accum_seg_a_dt,lst_mean_seg_a_dt=[],[],[],[]  #directional diff
     lst_seg_l,lst_accum_seg_l,lst_mean_seg_l=[],[],[]  #segment length diff
     lst_no,lst_t,lst_eta1,lst_eta2=[],[],[],[]
-    for i in range(0,n_row):
+    for i in range(18,n_row):
         #store 0s in the row for the 1st pole, cuz for the 1st pole, only 1, angle, length and their dif have no meaning except only spacial dif
         if i==0:
             eta1,eta2,ang,ds1,ds2,leh=0.,0.,0.,0.,0.,0.  #ds1/2 intermedium segment GCD for trj 1/2
@@ -661,11 +667,11 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
             eta1,ds1=ang_len4ge3rd_seg(df1.iloc[0][0],df1.iloc[0][1],
                                        df1.iloc[1][0],df1.iloc[1][1],
                                        df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                       df1.iloc[i][0],df1.iloc[i][1],tt1)
+                                       df1.iloc[i][0],df1.iloc[i][1],tt1,filname1)
             eta2,ds2=ang_len4ge3rd_seg(df2.iloc[0][0],df2.iloc[0][1],
                                        df2.iloc[1][0],df2.iloc[1][1],
                                        df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                       df2.iloc[i][0],df2.iloc[i][1],tt2)
+                                       df2.iloc[i][0],df2.iloc[i][1],tt2,filname2)
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)
             #-----------------------------START--------------------------------#
@@ -676,27 +682,36 @@ def ang_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
                                                      df1.iloc[i-1][4],df1.iloc[i-1][5],
                                                      df1.iloc[i-1][6],df1.iloc[i-1][7],
                                                      folder=filname1)
-                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
-                                                     df1.iloc[i][2],df1.iloc[i][3],
-                                                     df1.iloc[i][4],df1.iloc[i][5],
-                                                     df1.iloc[i][6],df1.iloc[i][7],
-                                                     folder=filname1)
                 b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
                                                      df2.iloc[i-1][2],df2.iloc[i-1][3],
                                                      df2.iloc[i-1][4],df2.iloc[i-1][5],
                                                      df2.iloc[i-1][6],df2.iloc[i-1][7],
                                                      folder=filname2)
-                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
-                                                     df2.iloc[i][2],df2.iloc[i][3],
-                                                     df2.iloc[i][4],df2.iloc[i][5],
-                                                     df2.iloc[i][6],df2.iloc[i][7],
-                                                     folder=filname2)
-                eta1r,ds1r=ang_len4ge3rd_seg(df1.iloc[0][0],df1.iloc[0][1],
-                                             df1.iloc[1][0],df1.iloc[1][1],
-                                             a1x,a1y,a2x,a2y,tt1)
-                eta2r,ds2r=ang_len4ge3rd_seg(df2.iloc[0][0],df2.iloc[0][1],
-                                             df2.iloc[1][0],df2.iloc[1][1],
-                                             b1x,b1y,b2x,b2y,tt2)
+                #if fails, run through the failed iteration of the loop again
+                while True:
+                    try:
+                        a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
+                                                             df1.iloc[i][2],df1.iloc[i][3],
+                                                             df1.iloc[i][4],df1.iloc[i][5],
+                                                             df1.iloc[i][6],df1.iloc[i][7],
+                                                             folder=filname1) #resample a2x,a2y for saving time; can resample both a1(x,y) and a2
+                        eta1r,ds1r=ang_len4ge3rd_seg(df1.iloc[0][0],df1.iloc[0][1],
+                                                     df1.iloc[1][0],df1.iloc[1][1],
+                                                     a1x,a1y,a2x,a2y,tt1,filname1)
+                    except TypeError: continue
+                    break
+                while True:
+                    try:
+                        b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
+                                                             df2.iloc[i][2],df2.iloc[i][3],
+                                                             df2.iloc[i][4],df2.iloc[i][5],
+                                                             df2.iloc[i][6],df2.iloc[i][7],
+                                                             folder=filname2)
+                        eta2r,ds2r=ang_len4ge3rd_seg(df2.iloc[0][0],df2.iloc[0][1],
+                                                     df2.iloc[1][0],df2.iloc[1][1],
+                                                     b1x,b1y,b2x,b2y,tt2,filname2)
+                    except TypeError: continue
+                    break
                 lst_d_ang_a_ras.append(eta1r-eta1)
                 lst_d_ang_ras_rbs.append(eta2r-eta1r)
                 lst_d_leh_a_ras.append(ds1r-ds1)
