@@ -7,13 +7,14 @@ polar wander paths (APWPs) of tectonic plates. It is powered by GMT and PmagPy.
 1. IMPORTANT: Testing and debugging per-segment tests separately on angle
    difference (dif) and length dif
 2. IMPORTANT: Because of complexity of the related algorithms about spherical
-   surface geometry, current directional change for each segment (seg) is
+   surface geometry, old-version directional change for each segment (seg) was
    actually the dif between its previous seg and itself (if we think about it,
    this solution should be able to give close results to dif between the 1st seg
-   and itself). This solution is also faster. I've already found a solution for
-   calculating dif between always the 1st seg and each segment, but the
-   execution time is much more than the previous solution. Maybe we need to
-   balance complexity and time.
+   and itself). This solution is also relatively fast. I've already figured out
+   a solution for calculating dif between each segment and always the 1st seg.
+   However, unfortunately its execution time is much more (like 3 times) than
+   the previous solution. Working on the code efficiency but not very positive
+   about the improvement. Maybe we need to balance complexity and time.
    * Complexity 1: Angle between two DIRECTIONAL geodesics (i.e. segments which
      are with DIRECTIONs in the order of poles' ages, but not neccessarily
      successive displacement ones); Angle between two geodesics (no constraints
