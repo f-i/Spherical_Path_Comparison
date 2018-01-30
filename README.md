@@ -24,3 +24,19 @@ polar wander paths (APWPs) of tectonic plates. It is powered by GMT and PmagPy.
      implemented for the present ang dif solution (i.e. dif from the previous
      seg), so completing angle change of every seg compared to the 1st seg
      is neccessary now (achieved in v0.4.4).
+
+# Related Algorithms
+
+## About Segment Angle Difference
+
+      <center><img src="fig1directionalGeodesics.png" alt="Complexity of Directional Change"></center>
+      <center>Figure 1: (a) Geographical; (b) Cartesian.</center>
+
+For example, in Figure 1(a), the three segment (directional geodesics)
+Seg<sub>1</sub><sup>'</sup>, Seg<sub>2</sub><sup>'</sup> and
+Seg<sub>3</sub><sup>'</sup> compose a APWP. Figure 1(b) is an analogy of these
+three vectors in Cartesian space.
+
+Please note that $\Delta\alpha_{12}$ != $\Delta\alpha_{12}^'$,
+$\Delta\alpha_{23}$ != $\Delta\alpha_{23}^'$, and
+$\Delta\alpha_{13}$ != $\Delta\alpha_{13}^'$.
