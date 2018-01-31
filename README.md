@@ -30,14 +30,21 @@ polar wander paths (APWPs) of tectonic plates. It is powered by GMT and PmagPy.
 ## About Segment Angle Difference
 
 ![](fig1directionalGeodesics.png?raw=true)
-      Figure 1: (a) Geographical; (b) Cartesian.
+Figure 1: Directional change calculations, for two successive displacement
+segments (directional geodesics) that describe pole wandering like
+Seg<sub>1</sub><sup>'</sup> & Seg<sub>2</sub><sup>'</sup> or
+Seg<sub>2</sub><sup>'</sup> & Seg<sub>3</sub><sup>'</sup>, e.g.
+&Delta;&alpha;<sub>12</sub><sup>'</sup>,
+&Delta;&alpha;<sub>23</sub><sup>'</sup>, and also for two separate segments like
+Seg<sub>1</sub><sup>'</sup> & Seg<sub>3</sub><sup>'</sup>, e.g.
+&Delta;&alpha;<sub>14</sub><sup>'</sup>: (a) Geographical; (b) Cartesian.
 
 For example, in Figure 1(a), the three segment (directional geodesics)
 Seg<sub>1</sub><sup>'</sup>, Seg<sub>2</sub><sup>'</sup> and
 Seg<sub>3</sub><sup>'</sup> compose a APWP. Figure 1(b) is an analogy of these
 three vectors in Cartesian space.
 
-Please note that \Delta\alpha<sub>12</sub> !=
-\Delta\alpha<sub>12</sub><sup>'</sup>, \Delta\alpha<sub>23</sub> !=
-\Delta\alpha<sub>23</sub><sup>'</sup>, \Delta\alpha<sub>13</sub> !=
-\Delta\alpha<sub>14</sub><sup>'</sup>.
+Please note that &Delta;&alpha;<sub>12</sub> !=
+&Delta;&alpha;<sub>12</sub><sup>'</sup>, &Delta;&alpha;<sub>23</sub> !=
+&Delta;&alpha;<sub>23</sub><sup>'</sup>, &Delta;&alpha;<sub>13</sub> !=
+&Delta;&alpha;<sub>14</sub><sup>'</sup>.
