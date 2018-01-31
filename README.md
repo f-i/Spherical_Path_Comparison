@@ -37,14 +37,15 @@ Seg<sub>2</sub><sup>'</sup> & Seg<sub>3</sub><sup>'</sup>, e.g.
 &Delta;&alpha;<sub>12</sub><sup>'</sup>,
 &Delta;&alpha;<sub>23</sub><sup>'</sup>, and also for two separate segments like
 Seg<sub>1</sub><sup>'</sup> & Seg<sub>3</sub><sup>'</sup>, e.g.
-&Delta;&alpha;<sub>14</sub><sup>'</sup>: (a) Geographical; (b) Cartesian.
+&Delta;&alpha;<sub>13</sub><sup>'</sup>: (a) Geographical; (b) Cartesian.
 
-For example, in Figure 1(a), the three segment (directional geodesics)
+For example, in Figure 1(a), the three segments (directional geodesics)
 Seg<sub>1</sub><sup>'</sup>, Seg<sub>2</sub><sup>'</sup> and
-Seg<sub>3</sub><sup>'</sup> compose a APWP. Figure 1(b) is an analogy of these
-three vectors in Cartesian space.
+Seg<sub>3</sub><sup>'</sup> compose an APWP-like trajectory without pole
+uncertainty shown. Figure 1(b) is an analogy of these three vectors in Cartesian
+space where the related calculations are more straightforward.
 
-Please note that &Delta;&alpha;<sub>12</sub> !=
-&Delta;&alpha;<sub>12</sub><sup>'</sup>, &Delta;&alpha;<sub>23</sub> !=
-&Delta;&alpha;<sub>23</sub><sup>'</sup>, &Delta;&alpha;<sub>13</sub> !=
-&Delta;&alpha;<sub>14</sub><sup>'</sup>.
+Please note that &Delta;&alpha;<sub>12</sub> is not equal to
+&Delta;&alpha;<sub>12</sub><sup>'</sup>, &Delta;&alpha;<sub>23</sub> not
+equal to &Delta;&alpha;<sub>23</sub><sup>'</sup>, &Delta;&alpha;<sub>13</sub>
+not equal to &Delta;&alpha;<sub>14</sub><sup>'</sup>.
