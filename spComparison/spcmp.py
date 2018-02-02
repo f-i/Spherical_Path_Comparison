@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 30Jan2018
+Modified on 31Jan2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.4.7.1
+@__version__	:	0.4.8
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -34,9 +34,8 @@ Environment:
     GMT + *NIX(-like) Shell                     (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
-    1. Tidy up subsections in function "spa_ang_len_dif_seg";
+    1. Tidy up subsections in function "spa_ang1st_len_dif";
     2. Tidy functions up into classes
-    3. Do not do all calculations in loops; Deal with cumulative sum using numpy
 ###--------------------------------------------------------------------------'''
 
 import random,subprocess,os,re, pandas as pd, numpy as np
@@ -377,7 +376,146 @@ def ang_len4ge3rd_seg(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,apr,filname):
         leh=s2f(PMAGPY36().angle((pmx,pmy),(pnx,pny)))
     return agc,leh
 
-def spa_ang_len_dif_seg(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
+def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
+    """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
+    (distance) and per-pair-of-coeval-segments' angular and length difs;
+    Here each segment's directional change is always relative to its previous
+    segment (in fact eventually relative to the first srgment)
+    Source: @__author__ and Chris Rowan, Jan2018"""
+    if fmt1=='textfile': filname1=re.split('/|\.',trj1)[-2]
+    if fmt2=='textfile': filname2=re.split('/|\.',trj2)[-2]
+    df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
+    df2=trj2 if fmt2=='df' else txt2df_awk(trj2)
+    df1,df2=df1[df1[2].isin(df2[2])],df2[df2[2].isin(df1[2])]  #remove age-unpaired rows in both dataframes
+    tt1,tt2=0,0  #tt1/2 intermedium segment azimuth for trj 1/2
+    n_row=min(len(df1.index),len(df2.index))
+    lst_pol_d_s,lst_seg_d_a,lst_seg_d_l=[],[],[]  #coeval segment spatial(s)/directional(a)/length(l) diff
+    lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
+    lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
+    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes')  #for ipynb demo
+    for i in range(0,n_row):
+        pl1=pd.Series([df1.iloc[i][0],df1.iloc[i][1],df1.iloc[i][2],df1.iloc[i][3],
+                       df1.iloc[i][4],df1.iloc[i][5],df1.iloc[i][6],df1.iloc[i][7]],
+                      index=['Lon','Lat','Age','Major','Minor','Az','kappa','N'])
+        pl2=pd.Series([df2.iloc[i][0],df2.iloc[i][1],df2.iloc[i][2],df2.iloc[i][3],
+                       df2.iloc[i][4],df2.iloc[i][5],df2.iloc[i][6],df2.iloc[i][7]],
+                      index=['Lon','Lat','Age','Major','Minor','Az','kappa','N'])
+        ind,sgd=common_dir_elliptical(pl1,pl2,fn1=filname1,fn2=filname2)
+        lst_pol_d_s.append(sgd)
+        lst_pol0s1.append(ind)
+        #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
+        if i==0:
+            eta1,eta2,ds1,ds2=None,None,None,None
+            lst_seg_d_a.append(None)
+            lst_seg_d_l.append(None)
+            lst_seg0a1.append(None)  #no specific meaning for 1st pole
+            lst_seg0l1.append(None)  #no specific meaning for 1st pole
+        #store 2 angle changes, 1 ang dif, 2 lengths, 1 len dif of the 1st coeval segments in the row for the 2nd pole
+        elif i==1:
+            eta1,ds1=ang_len4_1st_seg(df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                      df1.iloc[i][0],df1.iloc[i][1]) #ds1/2 segment length for trj 1/2
+            eta2,ds2=ang_len4_1st_seg(df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                      df2.iloc[i][0],df2.iloc[i][1])
+            ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
+            lst_seg0a1.append(0) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
+            leh=abs(ds1-ds2)
+            #-----------------------------START--------------------------------#
+            lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
+            for _ in range(1000):
+                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
+                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
+                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
+                                                     folder=filname1)
+                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
+                                                     df1.iloc[i][2],df1.iloc[i][3],
+                                                     df1.iloc[i][4],df1.iloc[i][5],
+                                                     df1.iloc[i][6],df1.iloc[i][7],
+                                                     folder=filname1)
+                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
+                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
+                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
+                                                     folder=filname2)
+                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
+                                                     df2.iloc[i][2],df2.iloc[i][3],
+                                                     df2.iloc[i][4],df2.iloc[i][5],
+                                                     df2.iloc[i][6],df2.iloc[i][7],
+                                                     folder=filname2)
+                _,ds1r=ang_len4_1st_seg(a1x,a1y,a2x,a2y)
+                _,ds2r=ang_len4_1st_seg(b1x,b1y,b2x,b2y)
+                lst_d_leh_a_ras.append(ds1r-ds1)
+                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+            _u_=np.percentile(lst_d_leh_a_ras,97.5)
+            _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
+            lst_seg0l1.append(0 if _u_>_l_ else 1)
+            #------------------------------END---------------------------------#
+            lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
+            lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+            tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
+        else:
+            eta1,ds1=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],
+                                      df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                      df1.iloc[i][0],df1.iloc[i][1],tt1)
+            eta2,ds2=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],
+                                      df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                      df2.iloc[i][0],df2.iloc[i][1],tt2)
+            ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
+            leh=abs(ds1-ds2)
+            #-----------------------------START--------------------------------#
+            lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
+            for _ in range(1000):
+                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
+                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
+                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
+                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
+                                                     folder=filname1)
+                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
+                                                     df1.iloc[i][2],df1.iloc[i][3],
+                                                     df1.iloc[i][4],df1.iloc[i][5],
+                                                     df1.iloc[i][6],df1.iloc[i][7],
+                                                     folder=filname1)
+                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
+                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
+                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
+                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
+                                                     folder=filname2)
+                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
+                                                     df2.iloc[i][2],df2.iloc[i][3],
+                                                     df2.iloc[i][4],df2.iloc[i][5],
+                                                     df2.iloc[i][6],df2.iloc[i][7],
+                                                     folder=filname2)
+                eta1r,ds1r=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],a1x,a1y,a2x,a2y,tt1)
+                eta2r,ds2r=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],b1x,b1y,b2x,b2y,tt2)
+                lst_d_ang_a_ras.append(eta1r-eta1)
+                lst_d_ang_ras_rbs.append(eta2r-eta1r)
+                lst_d_leh_a_ras.append(ds1r-ds1)
+                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+            au_=np.percentile(lst_d_ang_a_ras,97.5)
+            al_=np.percentile(lst_d_ang_ras_rbs,2.5)
+            lst_seg0a1.append(0 if au_>al_ else 1)
+            lu_=np.percentile(lst_d_leh_a_ras,97.5)
+            ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
+            lst_seg0l1.append(0 if lu_>ll_ else 1)
+            #------------------------------END---------------------------------#
+            lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
+            lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+            tt1,tt2=eta1,eta2
+        lst_no.append(i)
+        lst_t.append(df1.iloc[i][2])  #cuz so far synchronized ages for 2 APWPs are required, so df2.iloc[i][2] is also ok
+        lst_eta1.append(eta1)
+        lst_eta2.append(eta2)
+        lst_ds1.append(ds1)
+        lst_ds2.append(ds2)
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(i,lst_t[i],sgd,ind,lst_seg_d_a[i],lst_seg0a1[i],lst_seg_d_l[i],lst_seg0l1[i]))
+    if whole=='y': return [lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,lst_seg0a1,lst_seg_d_l,lst_seg0l1]
+    else:
+        return pd.DataFrame({'00_no':lst_no,'01_tstop':lst_t,
+                             '10_spa_pol_dif':lst_pol_d_s,'11_spa_pol_tes':lst_pol0s1,
+                             '20_ang_seg_dif':lst_seg_d_a,'21_ang_seg_tes':lst_seg0a1,'22_course_seg1':lst_eta1,'23_course_seg2':lst_eta2,
+                             '30_len_seg_dif':lst_seg_d_l,'31_len_seg_tes':lst_seg0l1,'32_len_seg1':lst_ds1,'33_len_seg2':lst_ds2})
+
+def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
     """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
     (distance) and per-pair-of-coeval-segments' angular and length difs;
     Here each segment's directional change is always relative to the 1st segment
@@ -816,7 +954,7 @@ def main():
                                      str(tbin)+"_"+str(tstep)+"_simil"),exist_ok=True)
             print(pmag_apwp)
             print(model_apwp)
-            simil=spa_ang_len_dif_seg(pmag_apwp,model_apwp,fmt1='df',fmt2='df')
+            simil=spa_ang1st_len_dif(pmag_apwp,model_apwp,fmt1='df',fmt2='df')
             simil.to_csv(os.path.join(root_o_dir,platemodel+"_"+plateid,
                                       str(tbin)+"_"+str(tstep)+"_simil",
                                       platemodel+"_"+plateid+"_"+str(tbin)+"_"+str(tstep)+"_"+str(mav)+"_"+str(wgt)+".d"),
@@ -1007,7 +1145,7 @@ def test():
     apwp1_5.write(pwp1_5ma)
     apwp1_5.close()
 
-    diff=spa_ang_len_dif_seg('/tmp/1.d','/tmp/2.d')
+    diff=spa_ang1st_len_dif('/tmp/1.d','/tmp/2.d')
     print(diff)
 
 if __name__=="__main__": main()

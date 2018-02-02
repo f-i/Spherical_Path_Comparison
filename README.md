@@ -46,11 +46,20 @@ Seg<sub>3</sub><sup>'</sup> compose an APWP-like trajectory without pole
 uncertainty shown. Figure 1(b) is an analogy of these three vectors in Cartesian
 space where the related calculations are more straightforward.
 
-Please note that &Delta;&alpha;<sub>12</sub> is not equal to
+As we all know azimuth &alpha;<sub>1</sub> is not equal to azimuth
+&alpha;<sub>1</sub><sup>'</sup>, &alpha;<sub>2</sub> not equal to
+&alpha;<sub>2</sub><sup>'</sup>, &alpha;<sub>3</sub> not equal to
+&alpha;<sub>3</sub><sup>'</sup>. In terms of directional change of each segment,
+azimuth &Delta;&alpha;<sub>12</sub> is not equal to azimuth
 &Delta;&alpha;<sub>12</sub><sup>'</sup>, &Delta;&alpha;<sub>23</sub> not
 equal to &Delta;&alpha;<sub>23</sub><sup>'</sup>, &Delta;&alpha;<sub>13</sub>
-not equal to &Delta;&alpha;<sub>13</sub><sup>'</sup>. Especially
-calculating a correct &Delta;&alpha;<sub>13</sub><sup>'</sup> is complex. The
-different situations (including the relatively simpler one shown in Figure 1(a))
-for obtaining a correct &Delta;&alpha;<sub>13</sub><sup>'</sup> will be
-described in detail as follows.
+not equal to &Delta;&alpha;<sub>13</sub><sup>'</sup>. Although
+&Delta;&alpha;<sub>13</sub> = azimuth &Delta;&alpha;<sub>12</sub> +
+&Delta;&alpha;<sub>23</sub>, &Delta;&alpha;<sub>13</sub><sup>'</sup> is not
+equal to the sum of &Delta;&alpha;<sub>12</sub><sup>'</sup> and
+&Delta;&alpha;<sub>23</sub><sup>'</sup>. Calculating a correct
+&Delta;&alpha;<sub>13</sub><sup>'</sup> is complex mainly because of the two
+separate geodesics are directional like vectors. Most importantly they are in
+chronological order. The different situations (including the relatively simpler
+one shown in Figure 1(a)) for obtaining a correct
+&Delta;&alpha;<sub>13</sub><sup>'</sup> will be described in detail as follows.
