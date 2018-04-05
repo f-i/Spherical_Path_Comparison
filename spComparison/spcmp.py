@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 31Jan2018
+Modified on 4Apr2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.4.8
+@__version__	:	0.4.9
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -16,35 +16,48 @@ polar wander paths (APWPs) of tectonic plates. It is powered by GMT
 (http://gmt.soest.hawaii.edu/) and PmagPy (https://pmagpy.github.io/).
 Copyright (C) 2016-2018 @__author__
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
-    Python3.6.x + NumPy + Pandas + (Numba, only if using a NVIDIA graphics card)
+    Python3.6.x + NumPy + (Numba, only if using a NVIDIA graphics card)
     GMT + *NIX(-like) Shell                     (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
     1. Tidy up subsections in function "spa_ang1st_len_dif";
     2. Tidy functions up into classes
+    3. Let {plateid}FHS{oldest}predictPWP{bin}{step}.d in main func be in the
+       same column order as ma.py outputed path, i.e. 'dec','inc','age',etc.;
+       revisit main func
+    4. Double check function lists2array
 ###--------------------------------------------------------------------------'''
 
-import random,subprocess,os,re, pandas as pd, numpy as np
+import random,subprocess,os,re, numpy as np
 from numba import jit  #to accelerate python codes
+
+PLATE_V_MAX_PAST=30  #according to Swanson-Hysell etal.2009, Kulakov etal.2014; today it's about 15.44cm/yr, DeMets etal.2010
+#divisor for mean length dif=PLATE_V_MAX_PAST/11.1195051975  #i.e. about 2.7 degree/myr, magnitude of velocity
+POL_WAND_DIR_DIF_MAX=180
 
 #Source: @__author__, Oct2015
 AZI="""
 gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'
 """
+
+#Source: @__author__, Jan2016
+SMALLER_ANGLE_REMAINDER="""
+gmt math -Q {0} {1} SUB 360 FMOD ABS =
+"""
+
 #Source: @__author__, Oct2016
 ASSIGN_AZI4ROTATED_ELLIP="""
 gmt set PROJ_ELLIPSOID Sphere
@@ -138,18 +151,59 @@ def s2i(_x_):
     try: return int(_x_)
     except ValueError: return _x_
 
-def txt2df_awk(txt,_h_=None,_c_='>'):
-    """convert text to pandas dataframe             Source: @__author__, 2017"""
-    return pd.read_table(txt,header=_h_,comment=_c_,dtype=str).apply(pd.to_numeric)
+def rm_unpaired_rows_ar(ar1,ar2,col):
+    """remove unpaired row(s) in numpy array ar1 based on their common culumn(s),
+    when compared to ar2. col: a number or string, e.g. 1, 'age', etc., or a
+    list of numbers, e.g. [0,1,2], ['age','n']   Source: @__author__, Feb2018"""
+    return ar1[np.in1d(ar1[:][col],ar2[:][col])]
+
+def ppf(fname,pnh=1):
+    """parse path file, from ASCII data to numpy array
+    Source: @__author__, Feb2018"""
+    pdl="\t"
+    puc=(0,1,2,3,4,5,6,7)  #so far not using age range (8,9) yet
+    pdt=[('dec','<f8'),('inc','<f8'),('age','<i2'),('dm','<f8'),('dp','<f8'),
+         ('dm_azi','<f8'),('k','<f4'),('n','<i2'),('possib_loest_age','<f4'),
+         ('possib_hiest_age','<f4')] #f4:float32,f8:float64,i2:int16
+    return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
+
+def ppf0(fname,pnh=0):
+    """parse model-predicted path file, from ASCII data to numpy array
+    Source: @__author__, Feb2018"""
+    pdl="\t"
+    puc=(0,1,2,3,4,5)
+    pdt=[('dec','<f8'),('inc','<f8'),('age','<i2'),('dm_azi','<f8'),
+         ('dm','<f8'),('dp','<f8')]
+    return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
+
+def ppf1(fname):
+    """parse raw vgp file, from ASCII data to numpy array
+    Source: @__author__, Feb2018"""
+    pdl="\t"
+    puc=(0,1,4,5)
+    pdt="f8,f8,f8,f8"
+    vgp=np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,names=True)
+    return np.insert(vgp,2,1,axis=1)
+
+def cumulative_sum4list(lst):
+    """generate a list that stores the cumulative sum of integers, e.g., if my
+    set of integers is [0,1,2,3], my generated list would be [0,1,3,6]
+    Source: @__author__, Feb2018"""
+    return list(np.cumsum(lst))
+
+def lists2array(lsts,nms,fmts):
+    """lists: tuple of lists; nms: list of lists' names; fmts: list of lists'
+    dtypes                                       Source: @__author__, Feb2018"""
+    return np.array(np.column_stack(lsts),np.dtype({'names':nms,'formats':fmts}))
 
 def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
-    """2D plane originning at (0,0); then rotate all points to any specific
-    location on the Earth surface for modeling 3D spherical surface ellipse;
-    random source; maj/mio must be diameter, not radius, if radius, don't forget
-    multiply by 2 beforehand (https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)
-    azimuth is in degree(s). When axis_unit=0/1, maj,mio in kilometers/degrees.
-    Note that alpha95 from fisher_mean is radius, not diameter (Chp6, Butler98)
-    Source: @__author__, 2016"""
+    """originate random points around (0,0) on 2D plane; then rotate (0,0) with
+    all these points to a specific location (lon,lat) on Earth for modeling 3D
+    spherical surface ellipse; maj/mio must be diameter, if radius given,
+    multiply by 2 beforehand (https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule);
+    azimuth is in degree(s); axis_unit=0/1 correspond to have maj,mio in
+    kilometers/degrees. Note that alpha95 derived from fisher_mean is radius,
+    not diameter (Chp6, Butler98)                   Source: @__author__, 2016"""
     #sigma: standard deviation; variance1/2=square of sigma1/2; length of semi-maj(in)or axis = 1.96 standard deviations
     if axis_unit==0:
         v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
@@ -163,9 +217,8 @@ def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     except ValueError as err: print("error",err,"on rdloc",rdloc)	#used for debugging
 
 def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=1000,axis_unit=1):
-    """when axis_unit=0/1, maj,mio are in kilometers/degrees.
-    alpha95 derived from fisher_mean is radius, no diameter (Chp6, Butler98)
-    Source: @__author__, Oct2016"""
+    """check function ellipsenrmdev_1gen, the difference here is generating a
+    certain number of random points              Source: @__author__, Oct2016"""
     if axis_unit==0:	#variance=sigma square
         v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
     else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
@@ -187,59 +240,53 @@ def get_bounds(d_i):
         bounds.append([comp[mim],comp[mam]])
     return bounds
 
-def get_fish(dire):
-    """generate fisher distributed points according to the supplied parameters
-    (includes D,I,N,k) in a pandas object.          Source: Chris Rowan, 2016"""
+def get_fsh(dire):
+    """generate Fisher distributed points according to the supplied parameters
+    (D,I,N,k) in a numpy void. Source: Chris Rowan and @__author__, 2016-2018"""
     _d_,_i_=[],[]
-    for _ in range(int(dire.n)):
-        dec,inc=PMAGPY36().fshdev(dire.k)
-        drot,irot=PMAGPY36().dodirot(dec,inc,dire.dec,dire.inc)
+    for _ in range(int(dire['n'])):
+        dec,inc=PMAGPY36().fshdev(dire['k'])
+        drot,irot=PMAGPY36().dodirot(dec,inc,dire['dec'],dire['inc'])
         _d_.append(drot)
         _i_.append(irot)
     return np.column_stack((_d_,_i_))
 
 def common_dir_elliptical(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
-    """da1/2 : a nested list of directional data [dec,inc] (a di_block)
-    Note that boots(teps)=1000 could be insufficient for when 1<N<=25, at least
-    5000 is needed to make sure the result is >95% significantly robust through
-    tests. But at the same time, it needs much more computing time. See further
-    discussion here:
+    """po1/2 (pole1/2 in Path1/2): numpy void; da1/2: a nested list of
+    directional data [dec,inc] (a di_block). Note that boots(teps)=1000 could be
+    insufficient for when 1<n<=25, at least 5000 is needed to ensure result >95%
+    significantly robust (confirmed by tests). Meanwhile, however, it means much
+    more computing time. See further discussion here:
     https://stats.stackexchange.com/questions/86040/rule-of-thumb-for-number-of-bootstrap-samples
-    Source: @__author__ and Chris Rowan, 2016"""
-    #-----pandas DataFrame for Path 1, denoted as po1---------------------
-    #for N>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
-    if po1.N>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(int(po1.Age)))) as _f_:
+    For n>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
+    Source: @__author__ and Chris Rowan, 2016-Feb2018"""
+    if po1['n']>25:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(int(po1['age'])))) as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
         bdi1=PMAGPY36().di_boot(da1)
-    elif po1.N<=25 and po1.N>1:
+    elif po1['n']<=25 and po1['n']>1:
         bdi1=[]
         for _ in range(boots):
-            dir1=po1[['Lon','Lat','kappa','N']]
-            dir1.rename(index={"Lon":"dec","Lat":"inc","kappa":"k","N":"n"},
-                        inplace=True)
-            fpars1=PMAGPY36().fisher_mean(get_fish(dir1))
+            dir1=po1[['dec','inc','k','n']]
+            fpars1=PMAGPY36().fisher_mean(get_fsh(dir1))
             bdi1.append([fpars1['dec'],fpars1['inc']])
     else:
-        lons1,lats1=elips_nrmdev_gen_n(po1.Lon,po1.Lat,po1.Az,
-                                       po1.Major,po1.Minor,dros)
+        lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
+                                       po1['dm'],po1['dp'],dros)
         bdi1=np.column_stack((lons1,lats1))
-    #-----pandas DataFrame for Path 2, denoted as po2---------------------
-    if po2.N>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(int(po2.Age)))) as _f_:
-            da2=[[ s2f(x) for x in line.split()] for line in _f_]
+    if po2['n']>25:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(int(po2['age'])))) as _f_:
+            da2=[[s2f(x) for x in line.split()] for line in _f_]
         bdi2=PMAGPY36().di_boot(da2)
-    elif po2.N<=25 and po2.N>1:
+    elif po2['n']<=25 and po2['n']>1:
         bdi2=[]
         for _ in range(boots):
-            dir2=po2[['Lon','Lat','kappa','N']]
-            dir2.rename(index={"Lon":"dec","Lat":"inc","kappa":"k","N":"n"},
-                        inplace=True)
-            fpars2=PMAGPY36().fisher_mean(get_fish(dir2))
+            dir2=po2[['dec','inc','k','n']]
+            fpars2=PMAGPY36().fisher_mean(get_fsh(dir2))
             bdi2.append([fpars2['dec'],fpars2['inc']])
     else:
-        lons2,lats2=elips_nrmdev_gen_n(po2.Lon,po2.Lat,po2.Az,
-                                       po2.Major,po2.Minor,dros)
+        lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
+                                       po2['dm'],po2['dp'],dros)
         bdi2=np.column_stack((lons2,lats2))
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)
@@ -247,40 +294,30 @@ def common_dir_elliptical(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
     _o_=1 if sum(out)==3 else 0  #1 distinguishable, 0 indistinguishable
-    _a_=PMAGPY36().angle((po1['Lon'],po1['Lat']),(po2['Lon'],po2['Lat']))
-    #return pd.Series([_o_,_a_[0]],index=['Outcome','angle'])
+    _a_=PMAGPY36().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
     return _o_,_a_[0]
 
 def common_dir_ellip1gen(point,folder='traj1'):
-    """derived from func 'common_dir_elliptical' Source: @__author__, Nov2017"""
-    if point.N>25:
-        os.makedirs(os.path.join('/tmp',folder),exist_ok=True)
-        dat=os.path.join('/tmp',folder,'{:s}.txt')
-        with open(dat.format(str(int(point.Age)))) as _f_:
+    """Given fisher parameters of one pole, output a randome point in this
+    pole's error ellipse; derived from func 'common_dir_elliptical' for numpy
+    void.                                Source: @__author__, Nov2017-Feb2018"""
+    if point['n']>25:
+        os.makedirs('/tmp/{0}'.format(folder),exist_ok=True)
+        with open('/tmp/{0}/{1}.txt'.format(folder,point['age'])) as _f_:
             d_l=[[s2f(x) for x in line.split()] for line in _f_]
         bdi=PMAGPY36().di_boot(d_l,nob=1)
         lon,lat=bdi[0][0],bdi[0][1]
-    elif point.N<=25 and point.N>1:
-        _d_=point[['Lon','Lat','kappa','N']]
-        _d_.rename(index={"Lon":"dec","Lat":"inc","kappa":"k","N":"n"},
-                   inplace=True)
-        fpars=PMAGPY36().fisher_mean(get_fish(_d_))
+    elif point['n']<=25 and point['n']>1:
+        _d_=point[['dec','inc','k','n']]
+        fpars=PMAGPY36().fisher_mean(get_fsh(_d_))
         lon,lat=fpars['dec'],fpars['inc']
     else:
-        lon,lat=ellipsenrmdev_1gen(point.Lon,point.Lat,point.Az,
-                                   point.Major,point.Minor)
+        lon,lat=ellipsenrmdev_1gen(point['dec'],point['inc'],point['dm_azi'],
+                                   point['dm'],point['dp'])
     return lon,lat
 
-def fpars2rand_pt_in_ellip4_1pol(dec,inc,tim,maj,mio,azi,kap,_n_,folder='traj1'):
-    """Given fisher parameters of one pole, output a randome point in this
-    pole's error ellipse                         Source: @__author__, Jan2018"""
-    return common_dir_ellip1gen(pd.Series([dec,inc,tim,maj,mio,azi,kap,_n_],
-                                          index=['Lon','Lat','Age','Major',
-                                                 'Minor','Az','kappa','N']),
-                                folder)
-
 def ang4_2suc_disp_direc_gdesics(lo1,la1,lo2,la2,lo3,la3):
-    """Angle change calculation for 2 successive displacement directional
+    """Calculate direction change for 2 successive displacement directional
     geodesics that describe pole wandering (lo1,la1)->(lo2,la2) and then
     (lo2,la2)->(lo3,la3), so it is clear that they intersect at (lo2,la2)
     Source: @__author__, 2017"""
@@ -293,7 +330,7 @@ def ang4_2suc_disp_direc_gdesics(lo1,la1,lo2,la2,lo3,la3):
     return (180-abs(agl))*sign
 
 def ang_len4_1st_seg(p1x,p1y,p2x,p2y):
-    """Angle change and length calculation for the first segment of APWP (a
+    """Calculate direction change and length for the first segment of APWP (a
     directional geodesic, point 1 [p1x,p1y] pointing to point 2 [p2x,p2y])
     Source: @__author__, Jan2018"""
     #segment angle change, compared to the 1st seg, here itself, so always 0
@@ -304,7 +341,7 @@ def ang_len4_1st_seg(p1x,p1y,p2x,p2y):
     return azi,gcd
 
 def ang_len4_2nd_seg(p1x,p1y,p2x,p2y,p3x,p3y,apr):
-    """Angle change and length calculation for the second segment of APWP (a
+    """Calculate direction change and length for the second segment of APWP (a
     directional geodesic, point 2 [p2x,p2y] pointing to point 3 [p3x,p3y]),
     compared to the first segment (point 1 [p1x,p1y] pointing to point 2
     [p2x,p2y]); also regarded as two connected directional geodesics with their
@@ -317,14 +354,14 @@ def ang_len4_2nd_seg(p1x,p1y,p2x,p2y,p3x,p3y,apr):
     return agc,leh
 
 def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
-    """Angle change calculation for 2 SEPARATE directional geodesics, which are
-    (lo1,la1)->(lo2,la2) and (lom,lam)->(lon,lan), so note that the two
-    geodesics DO NOT intersect at any of these four end points.
-    The key point here is not only correctly determining the right one from the
-    two intersection candicates, but also detecting the relative location of
-    this intersection to the next directional geodesic, and further determining
-    the 3rd point in the right direction of the next geodesic.
-    Source: @__author__, Jan2018"""
+    """Calculate direction change for 2 SEPARATE directional geodesics, which
+    are starting(lo1,la1)->ending(lo2,la2), and
+    starting(lom,lam)->ending(lon,lan), so note that the 2 geodesics DO NOT
+    intersect at any of these four end points. The key here is not only
+    correctly determining one from the 2 intersection candicates, but also
+    detecting the relative location of this intersection to the next directional
+    geodesic, and further determining the 3rd point in a correct direction of
+    the next geodesic.                           Source: @__author__, Jan2018"""
     ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESICS.format(lo1,la1,lo2,la2,
                                                               lom,lam,lon,lan,
                                                               filname))  #see more info from https://pyformat.info/
@@ -349,9 +386,8 @@ def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
             i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
                                                                           la2,lcx,
                                                                           lcy)).decode().rstrip('\n'))
-        else: print('3rd result does not exist!')
     if i2n not in (0, 1):
-        print("Angle betw AB(1st segment)&AI(1st seg starting point to intersection) {0} ShouldBe 0or180. Points:{1},{2},{3},{4},{5},{6},{7},{8}".format(i2n,lo1,la1,lo2,la2,lom,lam,lon,lan))
+        print("3trials failed! Angle{0} betw AB(1st segment)&AI(1st seg starting point to intersection) MustBe 0or180. Pts:{1},{2},{3},{4},{5},{6},{7},{8}".format(i2n,lo1,la1,lo2,la2,lom,lam,lon,lan))
     #in case the intersection is the same as or extremely close to the arrow point of the 1st geodesic
     if s2f(PMAGPY36().angle((lo2,la2),(lcx,lcy)))<1E-2:
         #2nd point is pole long/lat (the correct one of two intersections)
@@ -367,126 +403,243 @@ def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
     return agl
 
 def ang_len4ge3rd_seg(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,apr,filname):
-    """Angle change and length calculation for the third and any later segment
-    of APWP (Seg No is greater than or equal to 3); apr is the angle change of
-    its previous segment                         Source: @__author__, Jan2018"""
+    """Calculate direction change and length for the third and any later segment
+    of APWP (Seg No is greater than or equal to 3); apr is the direction change
+    of its previous segment                      Source: @__author__, Jan2018"""
     if pmx==pnx and pmy==pny: agc,leh=apr,0.
     else:
         agc=ang4_2sep_direc_gdesics(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,filname)
         leh=s2f(PMAGPY36().angle((pmx,pmy),(pnx,pny)))
     return agc,leh
 
-def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
+def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
+    """Directional difference defined using 'course' (accumulative azimuth
+    wrt the very beginning, so it could be beyond 180,360) is different from
+    azimuth                                         Source: @__author__, 2016"""
+    ar1=trj1 if fmt1=='ar' else ppf(trj1,pnh1)  #sep default as tab
+    ar2=trj2 if fmt2=='ar' else ppf(trj2,pnh2)
+    ar1,ar2=rm_unpaired_rows_ar(ar1,ar2,'age'),rm_unpaired_rows_ar(ar2,ar1,'age')  #remove age-unpaired rows in both arrays
+    len1,len2,tt1,tt2,w_s,w_a=0,0,0,0,1/3,1/3  #len1/2 accumulative dif of length for trj 1/2
+    accum_seg_a,accum_seg_l,accum_seg_a_dt,ma_seg_l,accum_ma_seg_l=0,0,0,0,0  #max of one section length of trj 1&2; accumulative all ma_seg_l
+    n_row=len(ar2)
+    lst_seg_d_a,lst_seg_d_l=[],[]
+    lst_accum_seg_a_dt,lst_no,lst_eta1,lst_eta2=[],[],[],[]
+    for i in range(1,n_row):
+        if ar1[i-1]['dec']==ar1[i]['dec'] and ar1[i-1]['inc']==ar1[i]['inc']:
+            ds1=0.
+            eta1=tt1
+        else:
+            ds1=s2f(PMAGPY36().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),
+                                     (ar1[i]['dec'],ar1[i]['inc'])))
+            eta1=s2f(run_sh(AZI.format(ar1[i-1]['dec'],ar1[i-1]['inc'],ar1[i]['dec'],
+                                       ar1[i]['inc'])).decode().rstrip('\n'))
+        if ar2[i-1]['dec']==ar2[i]['dec'] and ar2[i-1]['inc']==ar2[i]['inc']:
+            ds2=0.
+            eta2=tt2
+        else:
+            ds2=s2f(PMAGPY36().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),
+                                     (ar2[i]['dec'],ar2[i]['inc'])))
+            eta2=s2f(run_sh(AZI.format(ar2[i-1]['dec'],ar2[i-1]['inc'],ar2[i]['dec'],
+                                       ar2[i]['inc'])).decode().rstrip('\n'))
+        if tt1>eta1 and tt1-eta1>180.: eta1=eta1+360.  #needs to brainstorm for a while, but now it is right
+        if eta1>tt1 and eta1-tt1>180. and i>1: eta1=eta1-360.
+        if tt2>eta2 and tt2-eta2>180.: eta2=eta2+360.  #i.e. eta1/2 (Course) could be greater than 360
+        if eta2>tt2 and eta2-tt2>180. and i>1: eta2=eta2-360.
+        #ang=abs(eta2-eta1)  #according to Course (Xie etal2003 described it is accumulation of ZhuanJiao(Rotating Angle),set CW or CCW as positive); Through re-thinking, this is a
+        #good solution for closed polygons' comparison, not good for 2 trajectories
+        ang=s2f(run_sh(SMALLER_ANGLE_REMAINDER.format(eta2,eta1)).decode().rstrip('\n'))
+        if ang>180.: ang=360.-ang
+        leh=abs(ds1-ds2)
+        seg_a_dt=ang*abs(ds1)
+        tt1,tt2=eta1,eta2
+        lst_no.append(i)
+        lst_seg_d_a.append(ang)
+        lst_seg_d_l.append(leh)
+        accum_seg_a=accum_seg_a+ang  #angular difference
+        accum_seg_l=accum_seg_l+leh  #length difference
+        accum_seg_a_dt=accum_seg_a_dt+seg_a_dt  #Function (9) in Qi16
+        lst_accum_seg_a_dt.append(accum_seg_a_dt)
+        lst_eta1.append(eta1)
+        lst_eta2.append(eta2)
+        len1+=ds1
+        len2+=ds2
+        ma_seg_l=max(ds1,ds2)
+        accum_ma_seg_l+=ma_seg_l
+    divisor_l=accum_ma_seg_l
+    divisor_a=180.*(n_row-1)
+    #Qi16 functions might referred to Su15
+    print(w_a*accum_seg_a/divisor_a + (1.-w_s-w_a)*accum_seg_l/divisor_l)
+    print('Attn: For total dif, weights Ws & Wa are {} and {} repectively'.format(w_s,w_a))
+    return lists2array((lst_no,lst_seg_d_a,lst_eta1,lst_eta2,
+                        cumulative_sum4list(lst_seg_d_a),lst_accum_seg_a_dt,
+                        lst_seg_d_l,cumulative_sum4list(lst_seg_d_l)),
+                       ['00_no','20_ang_seg_dif','22_course_seg1',
+                        '23_course_seg2','24_ang_seg_dif_accum',
+                        '25_ang_seg_dif_dt_accum','30_len_seg_dif',
+                        '34_len_seg_dif_accum'],
+                       [np.uint8,np.float64,np.float64,np.float64,np.float64,
+                        np.float64,np.float64,np.float64])
+
+def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0):
+    """shape difference includes both angular and length difs; Similar to the
+    function 'spa_angpre_len_dif'. But here there is no significance tests on
+    angular and length difference; Also angular difference value is stored in
+    the row of the starting point of each segment (it's stored in the row of the
+    ending point in 'spa_angpre_len_dif')        Source: @__author__, Nov2017"""
+    ar1=trj1 if fmt1=='ar' else ppf(trj1,pnh1)  #sep default as tab
+    ar2=trj2 if fmt2=='ar' else ppf(trj2,pnh2)
+    ar1,ar2=rm_unpaired_rows_ar(ar1,ar2,'age'),rm_unpaired_rows_ar(ar2,ar1,'age')  #remove age-unpaired rows in both arrays
+    w_a,w_l,tt1,tt2,len1,len2=1/2,1/2,0,0,0,0  #tt1/2 intermedium segment azimuth for trj 1/2
+    accum_seg_l,accum_seg_a_dt=0,0
+    n_row=min(len(ar1),len(ar2))
+    lst_seg_d_a,lst_accum_seg_a_dt,lst_mean_seg_a_dt=[],[],[]  #directional diff
+    lst_seg_d_l,lst_mean_seg_l=[],[]  #segment length diff
+    lst_no,lst_t,lst_eta1,lst_eta2,d_shp_l=[],[],[],[],[]
+    for i in range(1,n_row):  #when n=0, no sense of shape cuz only a pair of poles exist
+        if i==n_row-1:
+            eta1,eta2,ang=0.,0.,0.
+            ds1=0. if ar1[i-1]['dec']==ar1[i]['dec'] and ar1[i-1]['inc']==ar1[i]['inc'] else s2f(PMAGPY36().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),(ar1[i]['dec'],ar1[i]['inc'])))
+            ds2=0. if ar2[i-1]['dec']==ar2[i]['dec'] and ar2[i-1]['inc']==ar2[i]['inc'] else s2f(PMAGPY36().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),(ar2[i]['dec'],ar2[i]['inc'])))
+            leh=abs(ds1-ds2)
+            dt_=abs(ar1[i]['age']-ar1[i-1]['age'])
+            seg_a_dt=0.
+            tt1,tt2=eta1,eta2
+        else:
+            if ar1[i-1]['dec']==ar1[i]['dec'] and ar1[i-1]['inc']==ar1[i]['inc']:
+                eta1=tt1
+                ds1=0.
+            else:
+                eta1=ang4_2suc_disp_direc_gdesics(ar1[i-1]['dec'],
+                                                  ar1[i-1]['inc'],
+                                                  ar1[i]['dec'],
+                                                  ar1[i]['inc'],
+                                                  ar1[i+1]['dec'],
+                                                  ar1[i+1]['inc'])
+                ds1=s2f(PMAGPY36().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),
+                                         (ar1[i]['dec'],ar1[i]['inc'])))
+            if ar2[i-1]['dec']==ar2[i]['dec'] and ar2[i-1]['inc']==ar2[i]['inc']:
+                eta2=tt2
+                ds2=0.
+            else:
+                eta2=ang4_2suc_disp_direc_gdesics(ar2[i-1]['dec'],
+                                                  ar2[i-1]['inc'],
+                                                  ar2[i]['dec'],
+                                                  ar2[i]['inc'],
+                                                  ar2[i+1]['dec'],
+                                                  ar2[i+1]['inc'])
+                ds2=s2f(PMAGPY36().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),
+                                         (ar2[i]['dec'],ar2[i]['inc'])))
+            ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
+            leh=abs(ds1-ds2)
+            dt_=abs(ar1[i]['age']-ar1[i-1]['age'])
+            seg_a_dt=ang*dt_
+            tt1,tt2=eta1,eta2
+        lst_eta1.append(eta1)
+        lst_eta2.append(eta2)
+        len1+=ds1
+        len2+=ds2
+        lst_no.append(i)
+        lst_t.append(ar1[i]['age'])  #cuz that ar1&2 ages are synchronized is required here, so ar2[i]['age'] is also ok
+        lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
+        accum_seg_a_dt+=seg_a_dt  #similar to function (9) in Qi16
+        lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+        accum_seg_l+=leh  #length difference
+        (mean_seg_a_dt,mean_seg_l)=(0.,0.) if i==0 else (accum_seg_a_dt/abs(ar1[i]['age']-ar1[0]['age']),accum_seg_l/abs(ar1[i]['age']-ar1[0]['age']))
+        lst_accum_seg_a_dt.append(accum_seg_a_dt)
+        lst_mean_seg_a_dt.append(mean_seg_a_dt)
+        lst_mean_seg_l.append(mean_seg_l)
+        divisor_l=PLATE_V_MAX_PAST/11.1195051975
+        s_a,s_l=mean_seg_a_dt/POL_WAND_DIR_DIF_MAX,mean_seg_l/divisor_l
+        d_shp=0. if i==0 else w_a*s_a+w_l*s_l
+        d_shp_l.append(format(d_shp,'.7f').rstrip('0') if d_shp<.1 else d_shp)
+    if whole=='y': return d_shp,s_a,s_l
+    else:
+        print('Attn: For shape dif, weights Ws & Wl are {} and {} repectively'.format(w_a,w_l))
+        return lists2array((lst_no,lst_t,lst_seg_d_a,lst_eta1,lst_eta2,
+                            cumulative_sum4list(lst_seg_d_a),lst_accum_seg_a_dt,
+                            lst_mean_seg_a_dt,lst_seg_d_l,
+                            cumulative_sum4list(lst_seg_d_l),lst_mean_seg_l,d_shp_l),
+                           ['00_no','01_tstop','20_ang_seg_dif','22_course_seg1',
+                            '23_course_seg2','24_ang_seg_dif_accum',
+                            '25_ang_seg_dif_dt_accum','26_ang_seg_dif_dt_mean',
+                            '30_len_seg_dif','34_len_seg_dif_accum',
+                            '35_len_seg_dif_mean','41_shape_dif'],
+                           [np.uint8,'<i2','<f8','<f8','<f8','<f8','<f8','<f8',
+                            '<f8','<f8','<f8','<f8'])
+
+def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
     (distance) and per-pair-of-coeval-segments' angular and length difs;
     Here each segment's directional change is always relative to its previous
-    segment (in fact eventually relative to the first srgment)
-    Source: @__author__ and Chris Rowan, Jan2018"""
+    segment (in fact eventually relative to the 1st segment in 2D space)
+    Source: @__author__, Jan2018"""
     if fmt1=='textfile': filname1=re.split('/|\.',trj1)[-2]
     if fmt2=='textfile': filname2=re.split('/|\.',trj2)[-2]
-    df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
-    df2=trj2 if fmt2=='df' else txt2df_awk(trj2)
-    df1,df2=df1[df1[2].isin(df2[2])],df2[df2[2].isin(df1[2])]  #remove age-unpaired rows in both dataframes
+    ar1=trj1 if fmt1=='ar' else ppf(trj1,pnh1)  #sep default as tab
+    ar2=trj2 if fmt2=='ar' else ppf(trj2,pnh2)
+    ar1=ar1[np.in1d(ar1[:]['age'],ar2[:]['age'])]  #remove age-unpaired rows in both arrays
+    ar2=ar2[np.in1d(ar2[:]['age'],ar1[:]['age'])]
     tt1,tt2=0,0  #tt1/2 intermedium segment azimuth for trj 1/2
-    n_row=min(len(df1.index),len(df2.index))
+    n_row=min(len(ar1),len(ar2))
     lst_pol_d_s,lst_seg_d_a,lst_seg_d_l=[],[],[]  #coeval segment spatial(s)/directional(a)/length(l) diff
     lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
     lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes')  #for ipynb demo
     for i in range(0,n_row):
-        pl1=pd.Series([df1.iloc[i][0],df1.iloc[i][1],df1.iloc[i][2],df1.iloc[i][3],
-                       df1.iloc[i][4],df1.iloc[i][5],df1.iloc[i][6],df1.iloc[i][7]],
-                      index=['Lon','Lat','Age','Major','Minor','Az','kappa','N'])
-        pl2=pd.Series([df2.iloc[i][0],df2.iloc[i][1],df2.iloc[i][2],df2.iloc[i][3],
-                       df2.iloc[i][4],df2.iloc[i][5],df2.iloc[i][6],df2.iloc[i][7]],
-                      index=['Lon','Lat','Age','Major','Minor','Az','kappa','N'])
-        ind,sgd=common_dir_elliptical(pl1,pl2,fn1=filname1,fn2=filname2)
+        ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         lst_pol_d_s.append(sgd)
         lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
         if i==0:
-            eta1,eta2,ds1,ds2=None,None,None,None
-            lst_seg_d_a.append(None)
-            lst_seg_d_l.append(None)
-            lst_seg0a1.append(None)  #no specific meaning for 1st pole
-            lst_seg0l1.append(None)  #no specific meaning for 1st pole
+            eta1,eta2,ds1,ds2=np.nan,np.nan,np.nan,np.nan
+            lst_seg_d_a.append(np.nan)
+            lst_seg_d_l.append(np.nan)
+            lst_seg0a1.append(np.nan)  #no specific meaning for 1st pole
+            lst_seg0l1.append(np.nan)  #no specific meaning for 1st pole
         #store 2 angle changes, 1 ang dif, 2 lengths, 1 len dif of the 1st coeval segments in the row for the 2nd pole
         elif i==1:
-            eta1,ds1=ang_len4_1st_seg(df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                      df1.iloc[i][0],df1.iloc[i][1]) #ds1/2 segment length for trj 1/2
-            eta2,ds2=ang_len4_1st_seg(df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                      df2.iloc[i][0],df2.iloc[i][1])
+            eta1,ds1=ang_len4_1st_seg(ar1[i-1]['dec'],ar1[i-1]['inc'],
+                                      ar1[i]['dec'],ar1[i]['inc']) #ds1/2 segment length for trj 1/2
+            eta2,ds2=ang_len4_1st_seg(ar2[i-1]['dec'],ar2[i-1]['inc'],
+                                      ar2[i]['dec'],ar2[i]['inc'])
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             lst_seg0a1.append(0) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
-            leh=abs(ds1-ds2)
-            #-----------------------------START--------------------------------#
+            leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
             for _ in range(1000):
-                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
-                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
-                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
-                                                     folder=filname1)
-                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
-                                                     df1.iloc[i][2],df1.iloc[i][3],
-                                                     df1.iloc[i][4],df1.iloc[i][5],
-                                                     df1.iloc[i][6],df1.iloc[i][7],
-                                                     folder=filname1)
-                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
-                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
-                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
-                                                     folder=filname2)
-                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
-                                                     df2.iloc[i][2],df2.iloc[i][3],
-                                                     df2.iloc[i][4],df2.iloc[i][5],
-                                                     df2.iloc[i][6],df2.iloc[i][7],
-                                                     folder=filname2)
+                a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
+                a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
+                b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
+                b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
                 _,ds1r=ang_len4_1st_seg(a1x,a1y,a2x,a2y)
                 _,ds2r=ang_len4_1st_seg(b1x,b1y,b2x,b2y)
                 lst_d_leh_a_ras.append(ds1r-ds1)
                 lst_d_leh_ras_rbs.append(ds2r-ds1r)
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if _u_>_l_ else 1)
-            #------------------------------END---------------------------------#
+            lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
             lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
             tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
         else:
-            eta1,ds1=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],
-                                      df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                      df1.iloc[i][0],df1.iloc[i][1],tt1)
-            eta2,ds2=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],
-                                      df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                      df2.iloc[i][0],df2.iloc[i][1],tt2)
+            eta1,ds1=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
+                                      ar1[i-1]['dec'],ar1[i-1]['inc'],
+                                      ar1[i]['dec'],ar1[i]['inc'],tt1)
+            eta2,ds2=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
+                                      ar2[i-1]['dec'],ar2[i-1]['inc'],
+                                      ar2[i]['dec'],ar2[i]['inc'],tt2)
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
-            leh=abs(ds1-ds2)
-            #-----------------------------START--------------------------------#
+            leh=abs(ds1-ds2)  #------------------------i>=2-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
             for _ in range(1000):
-                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
-                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
-                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
-                                                     folder=filname1)
-                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
-                                                     df1.iloc[i][2],df1.iloc[i][3],
-                                                     df1.iloc[i][4],df1.iloc[i][5],
-                                                     df1.iloc[i][6],df1.iloc[i][7],
-                                                     folder=filname1)
-                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
-                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
-                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
-                                                     folder=filname2)
-                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
-                                                     df2.iloc[i][2],df2.iloc[i][3],
-                                                     df2.iloc[i][4],df2.iloc[i][5],
-                                                     df2.iloc[i][6],df2.iloc[i][7],
-                                                     folder=filname2)
-                eta1r,ds1r=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],a1x,a1y,a2x,a2y,tt1)
-                eta2r,ds2r=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],b1x,b1y,b2x,b2y,tt2)
+                a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
+                a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
+                b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
+                b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
+                eta1r,ds1r=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
+                                            a1x,a1y,a2x,a2y,tt1)
+                eta2r,ds2r=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
+                                            b1x,b1y,b2x,b2y,tt2)
                 lst_d_ang_a_ras.append(eta1r-eta1)
                 lst_d_ang_ras_rbs.append(eta2r-eta1r)
                 lst_d_leh_a_ras.append(ds1r-ds1)
@@ -496,135 +649,100 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
             lst_seg0a1.append(0 if au_>al_ else 1)
             lu_=np.percentile(lst_d_leh_a_ras,97.5)
             ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if lu_>ll_ else 1)
-            #------------------------------END---------------------------------#
+            lst_seg0l1.append(0 if lu_>ll_ else 1)  #--------END-i>=2----------#
             lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
             tt1,tt2=eta1,eta2
         lst_no.append(i)
-        lst_t.append(df1.iloc[i][2])  #cuz so far synchronized ages for 2 APWPs are required, so df2.iloc[i][2] is also ok
+        lst_t.append(ar1[i]['age'])  #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
         lst_eta1.append(eta1)
         lst_eta2.append(eta2)
         lst_ds1.append(ds1)
         lst_ds2.append(ds2)
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(i,lst_t[i],sgd,ind,lst_seg_d_a[i],lst_seg0a1[i],lst_seg_d_l[i],lst_seg0l1[i]))
-    if whole=='y': return [lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,lst_seg0a1,lst_seg_d_l,lst_seg0l1]
-    else:
-        return pd.DataFrame({'00_no':lst_no,'01_tstop':lst_t,
-                             '10_spa_pol_dif':lst_pol_d_s,'11_spa_pol_tes':lst_pol0s1,
-                             '20_ang_seg_dif':lst_seg_d_a,'21_ang_seg_tes':lst_seg0a1,'22_course_seg1':lst_eta1,'23_course_seg2':lst_eta2,
-                             '30_len_seg_dif':lst_seg_d_l,'31_len_seg_tes':lst_seg0l1,'32_len_seg1':lst_ds1,'33_len_seg2':lst_ds2})
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1]))
+    return lists2array((lst_no,lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,
+                        lst_seg0a1,lst_eta1,lst_eta2,lst_seg_d_l,
+                        lst_seg0l1,lst_ds1,lst_ds2),
+                       ['00_no','01_tstop','10_spa_pol_dif','11_spa_pol_tes',
+                        '20_ang_seg_dif','21_ang_seg_tes','22_course_seg1',
+                        '23_course_seg2','30_len_seg_dif','31_len_seg_tes',
+                        '32_len_seg1','33_len_seg2'],
+                       ['<i2','<i2','<f8','<i1','<f8','<i1','<f8',
+                        '<f8','<f8','<i1','<f8','<f8'])
 
-def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
+def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
     (distance) and per-pair-of-coeval-segments' angular and length difs;
-    Here each segment's directional change is always relative to the 1st segment
-    Source: @__author__ and Chris Rowan, Jan2018"""
+    Here each segment's directional change is always relative to the 1st segment,
+    which is more complex than "relative to its previous segment".
+    Source: @__author__ and Chris Rowan, Nov2017-Feb2018"""
     if fmt1=='textfile': filname1=re.split('/|\.',trj1)[-2]
     if fmt2=='textfile': filname2=re.split('/|\.',trj2)[-2]
-    df1=trj1 if fmt1=='df' else txt2df_awk(trj1)  #sep default as tab
-    df2=trj2 if fmt2=='df' else txt2df_awk(trj2)
-    df1,df2=df1[df1[2].isin(df2[2])],df2[df2[2].isin(df1[2])]  #remove age-unpaired rows in both dataframes
+    ar1=trj1 if fmt1=='ar' else ppf(trj1,pnh1)  #sep default as tab
+    ar2=trj2 if fmt2=='ar' else ppf(trj2,pnh2)
+    ar1=ar1[np.in1d(ar1[:]['age'],ar2[:]['age'])]  #remove age-unpaired rows in both arrays
+    ar2=ar2[np.in1d(ar2[:]['age'],ar1[:]['age'])]
     tt1,tt2=0,0  #tt1/2 intermedium segment azimuth for trj 1/2
-    n_row=min(len(df1.index),len(df2.index))
+    n_row=min(len(ar1),len(ar2))
     lst_pol_d_s,lst_seg_d_a,lst_seg_d_l=[],[],[]  #coeval segment spatial(s)/directional(a)/length(l) diff
     lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
     lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
-    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes')
+    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes')  #for ipynb demo
     for i in range(0,n_row):
-        pl1=pd.Series([df1.iloc[i][0],df1.iloc[i][1],df1.iloc[i][2],df1.iloc[i][3],
-                       df1.iloc[i][4],df1.iloc[i][5],df1.iloc[i][6],df1.iloc[i][7]],
-                      index=['Lon','Lat','Age','Major','Minor','Az','kappa','N'])
-        pl2=pd.Series([df2.iloc[i][0],df2.iloc[i][1],df2.iloc[i][2],df2.iloc[i][3],
-                       df2.iloc[i][4],df2.iloc[i][5],df2.iloc[i][6],df2.iloc[i][7]],
-                      index=['Lon','Lat','Age','Major','Minor','Az','kappa','N'])
-        ind,sgd=common_dir_elliptical(pl1,pl2,fn1=filname1,fn2=filname2)
+        ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         lst_pol_d_s.append(sgd)
         lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
         if i==0:
-            eta1,eta2,ds1,ds2=None,None,None,None
-            lst_seg_d_a.append(None)
-            lst_seg_d_l.append(None)
-            lst_seg0a1.append(None)  #no specific meaning for 1st pole
-            lst_seg0l1.append(None)  #no specific meaning for 1st pole
+            eta1,eta2,ds1,ds2=np.nan,np.nan,np.nan,np.nan
+            lst_seg_d_a.append(np.nan)
+            lst_seg_d_l.append(np.nan)
+            lst_seg0a1.append(np.nan)  #no specific meaning for 1st pole
+            lst_seg0l1.append(np.nan)  #no specific meaning for 1st pole
         #store 2 angle changes, 1 ang dif, 2 lengths, 1 len dif of the 1st coeval segments in the row for the 2nd pole
         elif i==1:
-            eta1,ds1=ang_len4_1st_seg(df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                      df1.iloc[i][0],df1.iloc[i][1]) #ds1/2 segment length for trj 1/2
-            eta2,ds2=ang_len4_1st_seg(df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                      df2.iloc[i][0],df2.iloc[i][1])
+            eta1,ds1=ang_len4_1st_seg(ar1[i-1]['dec'],ar1[i-1]['inc'],
+                                      ar1[i]['dec'],ar1[i]['inc']) #ds1/2 segment length for trj 1/2
+            eta2,ds2=ang_len4_1st_seg(ar2[i-1]['dec'],ar2[i-1]['inc'],
+                                      ar2[i]['dec'],ar2[i]['inc'])
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             lst_seg0a1.append(0) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
-            leh=abs(ds1-ds2)
-            #-----------------------------START--------------------------------#
+            leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
             for _ in range(1000):
-                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
-                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
-                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
-                                                     folder=filname1)
-                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
-                                                     df1.iloc[i][2],df1.iloc[i][3],
-                                                     df1.iloc[i][4],df1.iloc[i][5],
-                                                     df1.iloc[i][6],df1.iloc[i][7],
-                                                     folder=filname1)
-                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
-                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
-                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
-                                                     folder=filname2)
-                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
-                                                     df2.iloc[i][2],df2.iloc[i][3],
-                                                     df2.iloc[i][4],df2.iloc[i][5],
-                                                     df2.iloc[i][6],df2.iloc[i][7],
-                                                     folder=filname2)
+                a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
+                a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
+                b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
+                b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
                 _,ds1r=ang_len4_1st_seg(a1x,a1y,a2x,a2y)
                 _,ds2r=ang_len4_1st_seg(b1x,b1y,b2x,b2y)
                 lst_d_leh_a_ras.append(ds1r-ds1)
                 lst_d_leh_ras_rbs.append(ds2r-ds1r)
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if _u_>_l_ else 1)
-            #------------------------------END---------------------------------#
+            lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
             lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
             tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
         elif i==2:
-            eta1,ds1=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],
-                                      df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                      df1.iloc[i][0],df1.iloc[i][1],tt1)
-            eta2,ds2=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],
-                                      df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                      df2.iloc[i][0],df2.iloc[i][1],tt2)
+            eta1,ds1=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
+                                      ar1[i-1]['dec'],ar1[i-1]['inc'],
+                                      ar1[i]['dec'],ar1[i]['inc'],tt1)
+            eta2,ds2=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
+                                      ar2[i-1]['dec'],ar2[i-1]['inc'],
+                                      ar2[i]['dec'],ar2[i]['inc'],tt2)
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
-            leh=abs(ds1-ds2)
-            #-----------------------------START--------------------------------#
+            leh=abs(ds1-ds2)  #------------------------i==2-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
             for _ in range(1000):
-                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
-                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
-                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
-                                                     folder=filname1)
-                a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
-                                                     df1.iloc[i][2],df1.iloc[i][3],
-                                                     df1.iloc[i][4],df1.iloc[i][5],
-                                                     df1.iloc[i][6],df1.iloc[i][7],
-                                                     folder=filname1)
-                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
-                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
-                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
-                                                     folder=filname2)
-                b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
-                                                     df2.iloc[i][2],df2.iloc[i][3],
-                                                     df2.iloc[i][4],df2.iloc[i][5],
-                                                     df2.iloc[i][6],df2.iloc[i][7],
-                                                     folder=filname2)
-                eta1r,ds1r=ang_len4_2nd_seg(df1.iloc[i-2][0],df1.iloc[i-2][1],a1x,a1y,a2x,a2y,tt1)
-                eta2r,ds2r=ang_len4_2nd_seg(df2.iloc[i-2][0],df2.iloc[i-2][1],b1x,b1y,b2x,b2y,tt2)
+                a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
+                a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
+                b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
+                b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
+                eta1r,ds1r=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
+                                            a1x,a1y,a2x,a2y,tt1)
+                eta2r,ds2r=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
+                                            b1x,b1y,b2x,b2y,tt2)
                 lst_d_ang_a_ras.append(eta1r-eta1)
                 lst_d_ang_ras_rbs.append(eta2r-eta1r)
                 lst_d_leh_a_ras.append(ds1r-ds1)
@@ -634,57 +752,37 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
             lst_seg0a1.append(0 if au_>al_ else 1)
             lu_=np.percentile(lst_d_leh_a_ras,97.5)
             ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if lu_>ll_ else 1)
-            #------------------------------END---------------------------------#
+            lst_seg0l1.append(0 if lu_>ll_ else 1)  #--------END-i==2----------#
             lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
             tt1,tt2=eta1,eta2
         else:
-            eta1,ds1=ang_len4ge3rd_seg(df1.iloc[0][0],df1.iloc[0][1],
-                                       df1.iloc[1][0],df1.iloc[1][1],
-                                       df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                       df1.iloc[i][0],df1.iloc[i][1],tt1,filname1)
-            eta2,ds2=ang_len4ge3rd_seg(df2.iloc[0][0],df2.iloc[0][1],
-                                       df2.iloc[1][0],df2.iloc[1][1],
-                                       df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                       df2.iloc[i][0],df2.iloc[i][1],tt2,filname2)
+            eta1,ds1=ang_len4ge3rd_seg(ar1[0]['dec'],ar1[0]['inc'],ar1[1]['dec'],
+                                       ar1[1]['inc'],ar1[i-1]['dec'],ar1[i-1]['inc'],
+                                       ar1[i]['dec'],ar1[i]['inc'],tt1,filname1)
+            eta2,ds2=ang_len4ge3rd_seg(ar2[0]['dec'],ar2[0]['inc'],ar2[1]['dec'],
+                                       ar2[1]['inc'],ar2[i-1]['dec'],ar2[i-1]['inc'],
+                                       ar2[i]['dec'],ar2[i]['inc'],tt2,filname2)
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
-            leh=abs(ds1-ds2)
-            #-----------------------------START--------------------------------#
+            leh=abs(ds1-ds2)  #------------------------i>=3-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
             for _ in range(1000):
-                a1x,a1y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i-1][0],df1.iloc[i-1][1],
-                                                     df1.iloc[i-1][2],df1.iloc[i-1][3],
-                                                     df1.iloc[i-1][4],df1.iloc[i-1][5],
-                                                     df1.iloc[i-1][6],df1.iloc[i-1][7],
-                                                     folder=filname1)
-                b1x,b1y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i-1][0],df2.iloc[i-1][1],
-                                                     df2.iloc[i-1][2],df2.iloc[i-1][3],
-                                                     df2.iloc[i-1][4],df2.iloc[i-1][5],
-                                                     df2.iloc[i-1][6],df2.iloc[i-1][7],
-                                                     folder=filname2)
+                a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
+                b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
                 #if fails, run through the failed iteration of the loop again
                 while True:
                     try:
-                        a2x,a2y=fpars2rand_pt_in_ellip4_1pol(df1.iloc[i][0],df1.iloc[i][1],
-                                                             df1.iloc[i][2],df1.iloc[i][3],
-                                                             df1.iloc[i][4],df1.iloc[i][5],
-                                                             df1.iloc[i][6],df1.iloc[i][7],
-                                                             folder=filname1) #resample a2x,a2y for saving time; can resample both a1(x,y) and a2
-                        eta1r,ds1r=ang_len4ge3rd_seg(df1.iloc[0][0],df1.iloc[0][1],
-                                                     df1.iloc[1][0],df1.iloc[1][1],
+                        a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1) #resample a2x,a2y for saving time; can resample both a1(x,y) and a2
+                        eta1r,ds1r=ang_len4ge3rd_seg(ar1[0]['dec'],ar1[0]['inc'],
+                                                     ar1[1]['dec'],ar1[1]['inc'],
                                                      a1x,a1y,a2x,a2y,tt1,filname1)
-                    except (UnboundLocalError,IndexError): continue
+                    except (UnboundLocalError,IndexError): continue  #if fail, reiterate again
                     break
                 while True:
                     try:
-                        b2x,b2y=fpars2rand_pt_in_ellip4_1pol(df2.iloc[i][0],df2.iloc[i][1],
-                                                             df2.iloc[i][2],df2.iloc[i][3],
-                                                             df2.iloc[i][4],df2.iloc[i][5],
-                                                             df2.iloc[i][6],df2.iloc[i][7],
-                                                             folder=filname2)
-                        eta2r,ds2r=ang_len4ge3rd_seg(df2.iloc[0][0],df2.iloc[0][1],
-                                                     df2.iloc[1][0],df2.iloc[1][1],
+                        b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
+                        eta2r,ds2r=ang_len4ge3rd_seg(ar2[0]['dec'],ar2[0]['inc'],
+                                                     ar2[1]['dec'],ar2[1]['inc'],
                                                      b1x,b1y,b2x,b2y,tt2,filname2)
                     except (UnboundLocalError,IndexError): continue
                     break
@@ -697,24 +795,25 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n'):
             lst_seg0a1.append(0 if au_>al_ else 1)
             lu_=np.percentile(lst_d_leh_a_ras,97.5)
             ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if lu_>ll_ else 1)
-            #------------------------------END---------------------------------#
+            lst_seg0l1.append(0 if lu_>ll_ else 1)  #--------END-i>=3----------#
             lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
             tt1,tt2=eta1,eta2
         lst_no.append(i)
-        lst_t.append(df1.iloc[i][2])  #cuz so far synchronized ages for 2 APWPs are required, so df2.iloc[i][2] is also ok
+        lst_t.append(ar1[i]['age'])  #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
         lst_eta1.append(eta1)
         lst_eta2.append(eta2)
         lst_ds1.append(ds1)
         lst_ds2.append(ds2)
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(i,lst_t[i],sgd,ind,lst_seg_d_a[i],lst_seg0a1[i],lst_seg_d_l[i],lst_seg0l1[i]))
-    if whole=='y': return [lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,lst_seg0a1,lst_seg_d_l,lst_seg0l1]
-    else:
-        return pd.DataFrame({'00_no':lst_no,'01_tstop':lst_t,
-                             '10_spa_pol_dif':lst_pol_d_s,'11_spa_pol_tes':lst_pol0s1,
-                             '20_ang_seg_dif':lst_seg_d_a,'21_ang_seg_tes':lst_seg0a1,'22_course_seg1':lst_eta1,'23_course_seg2':lst_eta2,
-                             '30_len_seg_dif':lst_seg_d_l,'31_len_seg_tes':lst_seg0l1,'32_len_seg1':lst_ds1,'33_len_seg2':lst_ds2})
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1]))
+    return lists2array((lst_no,lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,lst_seg0a1,
+                        lst_eta1,lst_eta2,lst_seg_d_l,lst_seg0l1,lst_ds1,lst_ds2),
+                       ['00_no','01_tstop','10_spa_pol_dif','11_spa_pol_tes',
+                        '20_ang_seg_dif','21_ang_seg_tes','22_course_seg1',
+                        '23_course_seg2','30_len_seg_dif','31_len_seg_tes',
+                        '32_len_seg1','33_len_seg2'],
+                       ['<i2','<i2','<f8','<i1','<f8','<i1','<f8','<f8','<f8',
+                        '<i1','<f8','<f8'])  #int8,int16,int32,int64 can be replaced by equivalent string 'i1','i2','i4',etc.
 
 def run_sh(script,stdin=None):
     """Raises error on non-zero return code
@@ -759,7 +858,7 @@ class PMAGPY36(object):
             decs,incs=_d_[:,0]*rad,_d_[:,1]*rad
             if _d_.shape[1]==3: ints=_d_[:,2] #take the given lengths assigned in 3rd column in _d_
         else: # single vector
-            decs,incs=np.array(_d_[0])*rad,np.array(_d_[1])*rad
+            decs,incs=np.array(float(_d_[0]))*rad,np.array(float(_d_[1]))*rad
             if len(_d_)==3: ints=np.array(_d_[2])
             else: ints=np.array([1.])
         return np.array([ints*np.cos(decs)*np.cos(incs),
@@ -904,61 +1003,39 @@ class PMAGPY36(object):
 def main():
     """Run this module"""
     #-------------Prepare Model Predicted APWP----------------------------------
-    #-------Following 6 lines can be replaced by just one line of awk code:-----
-    #--awk '{print $1,$2,$3,$5/111.195051975,$6/111.195051975,$4,0,0,0,0}' \
-    #OFS='\t' 101FHS140predictPWP105.d >/tmp/101FHS140predictPWP105.txt---------
-    model_apwp=txt2df_awk('/home/i/Desktop/git/digivisual/tmp/701FHS120predictPWP105.d')
-    model_apwp[4]/=111.195051975
-    model_apwp[5]/=111.195051975
-    model_apwp[6],model_apwp[7],model_apwp[8],model_apwp[9]=0,0,0,0
-    model_apwp=model_apwp[[0,1,2,4,5,3,6,7,8,9]]
-    model_apwp.rename(columns={4:3,5:4,3:5},inplace=True)  #----------END-------
+    modl_pp=ppf0('/home/i/Desktop/git/digivisual/tmp/701FHS120predictPWP105.d')
+    modl_pp[:]['dm']/=111.195051975
+    modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
     tbin=10		#18,10,2
-    tstep=5	#9,5,1
-    platemodel='dm16'
-    plateid='701comb'
-    root_o_dir='/run/media/i/s'
+    step=5	#9,5,1
+    modl='dm16'
+    pid='701comb'
+    wer='/run/media/i/s'
     for mav in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
         for wgt in [0,1,2,3,4,5]:
-            pmag_apwp=txt2df_awk(os.path.join(root_o_dir,platemodel+"_"+plateid,
-                                              platemodel+"_"+plateid+"_"+str(tbin)+"_"+str(tstep)+"_"+str(mav)+"_"+str(wgt)+".txt"))
+            pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,step,mav,wgt),
+                        pnh=1)
             os.makedirs('/tmp/traj1',exist_ok=True)
-            for row in pmag_apwp.itertuples():
-                print(row[3])
-                if row[8]>25:
-                    raw_dir1=os.path.join(root_o_dir,platemodel,plateid,
-                                          platemodel+"_"+plateid+"_"+str(tbin)+"_"+str(tstep)+"_"+str(mav)+"_"+str(wgt),
-                                          str(round(row[3]+tstep,1))+"_"+str(round(row[3]-tstep,1))+".d")
-                    raw_dir2=os.path.join(root_o_dir,platemodel,plateid,
-                                          platemodel+"_"+plateid+"_"+str(tbin)+"_"+str(tstep)+"_"+str(mav)+"_"+str(wgt),
-                                          str(round(row[3]+tstep,1))+"_"+str(round(row[3]-tstep,1))+"_WT.d")
-                    raw_poles=pd.read_table(raw_dir1,
-                                            header=0,
-                                            comment='>',
-                                            dtype=str) if os.path.isfile(raw_dir1) else pd.read_table(raw_dir2,
-                                                                                                      header=0,
-                                                                                                      comment='>',
-                                                                                                      dtype=str)
-                    raw_poles[12]=1.0
-                    raw_poles[13]=(pd.to_numeric(raw_poles['LOMAGAGE'])+
-                                   pd.to_numeric(raw_poles['HIMAGAGE']))/2
-                    raw_poles=raw_poles[['PLONG','PLAT',12,13]]
-                    print(raw_poles)
-                    raw_poles.to_csv('/tmp/traj1/{:s}.txt'.format(str(int(row[3]))),
-                                     sep='\t',encoding='utf-8',header=False,
-                                     index=False)
+            for i in pmag_pp:
+                print(i['age'])
+                if i['n']>25:
+                    raw_dir1='{0}/{1}/{2}/{1}_{2}_{3}_{4}_{5}_{6}/{7}_{8}.d'.format(wer,modl,pid,tbin,step,mav,wgt,
+                                                                                    round(i['age']+step,1),round(i['age']-step,1))
+                    raw_dir2='{0}/{1}/{2}/{1}_{2}_{3}_{4}_{5}_{6}/{7}_{8}_WT.d'.format(wer,modl,pid,tbin,step,mav,wgt,
+                                                                                       round(i['age']+step,1),round(i['age']-step,1))
+                    raw_pls=ppf1(raw_dir1) if os.path.isfile(raw_dir1) else ppf1(raw_dir2)
+                    print(raw_pls)
+                    np.savetxt('/tmp/traj1/{:s}.txt'.format(i['age']),raw_pls,
+                               delimiter='	')
             print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
-            os.makedirs(os.path.join(root_o_dir,platemodel+"_"+plateid,
-                                     str(tbin)+"_"+str(tstep)+"_simil"),exist_ok=True)
-            print(pmag_apwp)
-            print(model_apwp)
-            simil=spa_ang1st_len_dif(pmag_apwp,model_apwp,fmt1='df',fmt2='df')
-            simil.to_csv(os.path.join(root_o_dir,platemodel+"_"+plateid,
-                                      str(tbin)+"_"+str(tstep)+"_simil",
-                                      platemodel+"_"+plateid+"_"+str(tbin)+"_"+str(tstep)+"_"+str(mav)+"_"+str(wgt)+".d"),
-                         index=False,header=True,sep='	')
+            os.makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),exist_ok=True)
+            print(pmag_pp)
+            print(modl_pp)
+            simil=spa_ang1st_len_dif(pmag_pp,modl_pp,'ar','ar')
+            np.savetxt('{0}/{1}_{2}/{3}_{4}_simil/{1}_{2}_{3}_{4}_{5}_{6}.d'.format(wer,modl,pid,tbin,step,mav,wgt),
+                       simil,delimiter='	')
             print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
 
 def test():
@@ -1137,11 +1214,11 @@ def test():
     apwp2=open('/tmp/2.d','w')
     apwp2.write(pwp2)
     apwp2.close()
-    os.makedirs('/tmp/traj1',exist_ok=True)
-    apwp1_0=open('/tmp/traj1/0.txt','w')
+    os.makedirs('/tmp/1',exist_ok=True)
+    apwp1_0=open('/tmp/1/0.txt','w')
     apwp1_0.write(pwp1_0ma)
     apwp1_0.close()
-    apwp1_5=open('/tmp/traj1/5.txt','w')
+    apwp1_5=open('/tmp/1/5.txt','w')
     apwp1_5.write(pwp1_5ma)
     apwp1_5.close()
 
