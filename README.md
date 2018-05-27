@@ -2,6 +2,7 @@
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
 measuring similarity of spherical paths, especially the paleomagnetic apparent
 polar wander paths (APWPs) of tectonic plates. It is powered by GMT and PmagPy.
+Read on for more details here: https://github.com/f-i/APWP_similarity
 
 # About the Functions
 Because of complexity of the related algorithms about spherical surface geometry,
@@ -61,4 +62,5 @@ separate geodesics (segments) are directional like vectors. They are also in
 chronological order, it does not influence the angle between these two separate
 geodesics. The different situations (including the relatively simpler one shown
 in Figure 1(a)) for obtaining a correct &Delta;&alpha;<sub>13</sub><sup>'</sup>
-will be described in detail as follows.
+will be described in detail as follows. Proper map projections for this kind of
+demonstrations are (1) Miller cylindrical, and (2) Azimuthal equidistant.

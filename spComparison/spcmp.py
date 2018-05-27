@@ -7,7 +7,7 @@ Modified on 4Apr2018
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.4.9
+@__version__	:	0.5.0
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -293,7 +293,7 @@ def common_dir_elliptical(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
     out=[]
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
-    _o_=1 if sum(out)==3 else 0  #1 distinguishable, 0 indistinguishable
+    _o_=1 if sum(out)>0 else 0  #1 distinguishable, 0 indistinguishable
     _a_=PMAGPY36().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
     return _o_,_a_[0]
 
