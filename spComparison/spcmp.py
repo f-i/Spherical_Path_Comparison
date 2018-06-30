@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 19Jun2018
+Modified on 25Jun2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.1
+@__version__	:	0.5.3
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -30,7 +30,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
     Python3.6.x + NumPy + (Numba, only if using a NVIDIA graphics card)
-    GMT + *NIX(-like) Shell                     (PmagPy installation not needed)
+    GMT5 + *NIX(-like) Shell                    (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
     1. Tidy up subsections in function "spa_ang1st_len_dif";
@@ -100,7 +100,7 @@ echo "{3}" |tr -s ' '  '\n' |sed 's/\(\[\|\]\)//g;/^[[:space:]]*$/d' >/tmp/tmp2.
 paste /tmp/tmp1.d /tmp/tmp2.d |gmt backtracker -E$p -o0,1 |gmt backtracker -E{0}/{1}/$dir_ex -o0,1
 """
 
-#Source: @__author__, Jan2018
+#Source: @__author__, Jan-Jun2018
 INTERSECTION_BETW2DIRECTIONAL_GEODESICS="""
 accurac=1E-2
 accura2=1E-3
@@ -109,37 +109,41 @@ gmt project -C{0}/{1} -E{2}/{3} -G$accurac -L-180/180 > /tmp/{8}.d
 fi
 gmt project -C{6}/{7} -E{4}/{5} -G$accura2 -L$accura2/.009 > /tmp/half.gc
 gmt project -C{6}/{7} -E{4}/{5} -G$accurac -L$accurac/180 >> /tmp/half.gc
-gmt spatial /tmp/{8}.d /tmp/half.gc -Ie -Fl |head -n1 |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt spatial /tmp/{8}.d /tmp/half.gc -Ie -Fl -o0,1
 """
 
-#Source: @__author__, Jan2018
-INTERSECTION_BETW2DIRECTIONAL_GEODESI2S="""
-gmt spatial /tmp/{0}.d /tmp/half.gc -Ie -Fl |sed '/^\s*$/d' |sed '2q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
-"""
-
-#Source: @__author__, Jan2018
-INTERSECTION_BETW2DIRECTIONAL_GEODESI3S="""
-gmt spatial /tmp/{0}.d /tmp/half.gc -Ie -Fl |sed '/^\s*$/d' |sed '3q;d' |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
-"""
-
-#Source: @__author__, Jan2018
+#Source: @__author__, Jan-Jun2018
 RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC="""
 az1=`gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'`
 az2=`gmt mapproject -Af{0}/{1} -fg -o2 <<< '{4} {5}'`
 a1=`gmt math -Q $az1 360 FMOD -fx --FORMAT_GEO_OUT=D =`
 a2=`gmt math -Q $az2 360 FMOD -fx --FORMAT_GEO_OUT=D =`
 tst=`gmt math -Q $a1 $a2 SUB ABS =`
-if [ $(gmt math -Q $tst 1 LT =) -eq 1 ]; then echo 0
-elif [ $(gmt math -Q $tst 179 GT =) -eq 1 ]; then echo 1
-else echo $tst
-fi
+echo $tst
 """
 
 #Source: @__author__, Jan2018
 POINT_AHEAD_GEODESIC="""
 gcd=`gmt vector -S{0}/{1} -TD -fg <<< "{2} {3}" | gmt math STDIN CEIL 10 ADD =`
-gmt project -C{0}/{1} -E{2}/{3} -G1 -L$gcd/`gmt math -Q 1 $gcd ADD =` | head -n1 |gmtmath STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt project -C{0}/{1} -E{2}/{3} -G1 -L$gcd/`gmt math -Q 1 $gcd ADD =` | head -n1 |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
+
+@jit(nopython=False,parallel=True)
+def wgs2cart(dis):
+    '''converts list/array of vector poles (WGS84 coordinates), in degrees, to
+    array of Cartesian coordinates, in -1 <= x,y <= 1
+    Source: @__author__, Apr2018'''
+    ints=np.ones(len(dis)).transpose() #get an array of ones to plug into lon,lat pairs
+    _d_=np.array(dis)
+    rad=np.pi/180.
+    if len(_d_.shape)>1: # array of vectors
+        lon,lat=(((_d_[:,0]-180)%360)-180)*rad,_d_[:,1]*rad  #make sure -180,180
+        if _d_.shape[1]==3: ints=_d_[:,2] #take the given lengths assigned in 3rd column in _d_
+    else: # single pole(lon,lat) vector
+        lon,lat=(((np.array(float(_d_[0]))-180)%360)-180)*rad,np.array(float(_d_[1]))*rad
+        if len(_d_)==3: ints=np.array(_d_[2])
+        else: ints=np.array([1.])
+    return np.array([ints*lon/np.pi,ints*np.cos(np.pi/2.-lat)]).transpose()
 
 def s2f(_x_):
     """convert x from str to float                  Source: @__author__, 2016"""
@@ -192,7 +196,7 @@ def cumulative_sum4list(lst):
     return list(np.cumsum(lst))
 
 def lists2array(lsts,nms,fmts):
-    """lists: tuple of lists; nms: list of lists' names; fmts: list of lists'
+    """lsts: tuple of lists; nms: list of lists' names; fmts: list of lists'
     dtypes                                       Source: @__author__, Feb2018"""
     return np.array(np.column_stack(lsts),np.dtype({'names':nms,'formats':fmts}))
 
@@ -235,6 +239,21 @@ def get_bounds(d_i):
     mim=int(.025*len(cart[0]))
     mam=int(.975*len(cart[0]))
     for i in range(3):
+        comp=cart[i]
+        comp.sort()
+        bounds.append([comp[mim],comp[mam]])
+    return bounds
+
+@jit(nopython=False,parallel=True)
+def get_bounds2d(d_i):
+    """For pole vectors (WGS84 coordinates). Note that the function 'get_bounds'
+    is for declination/inclination vectors; Better not used for pole vectors.
+    Source: @__author__, Apr2018"""
+    bounds=[] #2sigma bounds
+    cart=wgs2cart(d_i).transpose() #convert to cartesian coordinates
+    mim=int(.025*len(cart[0]))
+    mam=int(.975*len(cart[0]))
+    for i in range(2):
         comp=cart[i]
         comp.sort()
         bounds.append([comp[mim],comp[mam]])
@@ -293,7 +312,48 @@ def common_dir_elliptical(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
     out=[]
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
-    _o_=1 if sum(out)>0 else 0  #1 distinguishable, 0 indistinguishable
+    _o_=1 if sum(out)>=1 else 0  #1 distinguishable, 0 indistinguishable
+    _a_=PMAGPY36().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
+    return _o_,_a_[0]
+
+def common_dir_elliptica_(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
+    """derived from the function 'common_dir_elliptical'; the difference here is
+    this function is using 'get_bounds2d' func to more accurately process the
+    bounds of random pole vectors                Source: @__author__, Apr2018"""
+    if po1['n']>25:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(int(po1['age'])))) as _f_:
+            da1=[[s2f(x) for x in line.split()] for line in _f_]
+        bdi1=PMAGPY36().di_boot(da1)
+    elif po1['n']<=25 and po1['n']>1:
+        bdi1=[]
+        for _ in range(boots):
+            dir1=po1[['dec','inc','k','n']]
+            fpars1=PMAGPY36().fisher_mean(get_fsh(dir1))
+            bdi1.append([fpars1['dec'],fpars1['inc']])
+    else:
+        lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
+                                       po1['dm'],po1['dp'],dros)
+        bdi1=np.column_stack((lons1,lats1))
+    if po2['n']>25:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(int(po2['age'])))) as _f_:
+            da2=[[s2f(x) for x in line.split()] for line in _f_]
+        bdi2=PMAGPY36().di_boot(da2)
+    elif po2['n']<=25 and po2['n']>1:
+        bdi2=[]
+        for _ in range(boots):
+            dir2=po2[['dec','inc','k','n']]
+            fpars2=PMAGPY36().fisher_mean(get_fsh(dir2))
+            bdi2.append([fpars2['dec'],fpars2['inc']])
+    else:
+        lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
+                                       po2['dm'],po2['dp'],dros)
+        bdi2=np.column_stack((lons2,lats2))
+    #now check if pass or fail -pass only if error bounds overlap in x,y, and z
+    bounds1,bounds2=get_bounds2d(bdi1),get_bounds2d(bdi2)
+    out=[]
+    for i,j in zip(bounds1,bounds2):
+        out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
+    _o_=1 if sum(out)==2 else 0  #1 distinguishable, 0 indistinguishable
     _a_=PMAGPY36().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
     return _o_,_a_[0]
 
@@ -365,37 +425,37 @@ def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
     ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESICS.format(lo1,la1,lo2,la2,
                                                               lom,lam,lon,lan,
                                                               filname))  #see more info from https://pyformat.info/
-    lca=re.split(r'\t+',ise.decode("utf-8").rstrip('\n'))
-    lcx,lcy=s2f(lca[0]),s2f(lca[1])
-    i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
-                                                                  la2,lcx,
-                                                                  lcy)).decode().rstrip('\n'))
-    if i2n not in (0, 1):
-        ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESI2S.format(filname))
-        lca=re.split(r'\t+',ise.decode("utf-8").rstrip('\n'))
-        if lca[0] and lca[1]:
-            lcx,lcy=s2f(lca[0]),s2f(lca[1])
-            i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
-                                                                          la2,lcx,
-                                                                          lcy)).decode().rstrip('\n'))
-    if i2n not in (0, 1):
-        ise=run_sh(INTERSECTION_BETW2DIRECTIONAL_GEODESI3S.format(filname))
-        lca=re.split(r'\t+',ise.decode("utf-8").rstrip('\n'))
-        if lca[0] and lca[1]:
-            lcx,lcy=s2f(lca[0]),s2f(lca[1])
-            i2n=s2i(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
-                                                                          la2,lcx,
-                                                                          lcy)).decode().rstrip('\n'))
-    if i2n not in (0, 1):
-        print("3trials failed! Angle{0} betw AB(1st segment)&AI(1st seg starting point to intersection) MustBe 0or180. Pts:{1},{2},{3},{4},{5},{6},{7},{8}".format(i2n,lo1,la1,lo2,la2,lom,lam,lon,lan))
+    lca=re.split(r'\n+',ise.decode("utf-8").rstrip('\n'))
+    lcasiz=len(lca)
+    isd=np.ones((lcasiz,),dtype=[('on12','f8'),('onmn','f8'),('lon','f8'),('lat','f8'),('i2n','f8')])
+    isdd=[]
+    for j,i in enumerate(lca):
+        i_i=re.split(r'\t+',i)
+        lcx,lcy=s2f(i_i[0]),s2f(i_i[1])
+        i2n=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
+                                                                      la2,lcx,
+                                                                      lcy)).decode().rstrip('\n'))
+        i2_=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lom,lam,lon,
+                                                                      lan,lcx,
+                                                                      lcy)).decode().rstrip('\n'))
+        if (i2n<1 or (i2n>179 and i2n<181)) and (i2_<1 or (i2_>179 and i2_<181)):
+            if i2n<1: on12=1-i2n
+            else: on12=abs(180-i2n)
+            if i2_<1: onmn=1-i2_
+            else: onmn=abs(180-i2_)
+            isd[j]=(on12,onmn,lcx,lcy,i2n)
+        else: isdd.append(j)
+    isd=np.delete(isd,isdd,0)
+    imi=min(isd['on12'].argsort()[0],isd['onmn'].argsort()[0])  #if isd is empty, IndexError: index 0 is out of bounds for axis 0 with size 0, which normally should not happen
+    lcx,lcy=isd['lon'][imi],isd['lat'][imi]
     #in case the intersection is the same as or extremely close to the arrow point of the 1st geodesic
     if s2f(PMAGPY36().angle((lo2,la2),(lcx,lcy)))<1E-2:
         #2nd point is pole long/lat (the correct one of two intersections)
         agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,lon,lan)
     #determine the relative location of the intersection to the 1st geodesic
     else:
-        if i2n==0: agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,lon,lan)
-        elif i2n==1:
+        if isd['i2n'][imi]<1: agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,lon,lan)
+        elif isd['i2n'][imi]>179 and isd['i2n'][imi]<181:
             hd1=run_sh(POINT_AHEAD_GEODESIC.format(lo1,la1,lcx,lcy))  #must be lo1,la1
             p31=re.split(r'\t+',hd1.decode("utf-8").rstrip('\n'))
             agl=ang4_2suc_disp_direc_gdesics(s2f(p31[0]),s2f(p31[1]),lcx,lcy,
@@ -584,7 +644,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     lst_pol_d_s,lst_seg_d_a,lst_seg_d_l=[],[],[]  #coeval segment spatial(s)/directional(a)/length(l) diff
     lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
     lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
-    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes')  #for ipynb demo
+    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
     for i in range(0,n_row):
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         lst_pol_d_s.append(sgd)
@@ -659,7 +719,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
         lst_eta2.append(eta2)
         lst_ds1.append(ds1)
         lst_ds2.append(ds2)
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1]))
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1],eta1,eta2,ds1,ds2))
     return lists2array((lst_no,lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,
                         lst_seg0a1,lst_eta1,lst_eta2,lst_seg_d_l,
                         lst_seg0l1,lst_ds1,lst_ds2),
@@ -687,9 +747,11 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     lst_pol_d_s,lst_seg_d_a,lst_seg_d_l=[],[],[]  #coeval segment spatial(s)/directional(a)/length(l) diff
     lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
     lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
-    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes')  #for ipynb demo
-    for i in range(0,n_row):
+    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
+    for i in range(39,n_row):
+    #for i in [41,42,43]:
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
+        #ind,sgd=0,0
         lst_pol_d_s.append(sgd)
         lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -709,6 +771,11 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             ang=0
             #ang option 2: azi dif
             #ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
+            #ang option 3: actual dif
+            #ang=ang4_2sep_direc_gdesics(ar1[i-1]['dec'],ar1[i-1]['inc'],
+            #                            ar1[i]['dec'],ar1[i]['inc'],
+            #                            ar2[i-1]['dec'],ar2[i-1]['inc'],
+            #                            ar2[i]['dec'],ar2[i]['inc'],filname1)
             lst_seg0a1.append(0) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
@@ -726,14 +793,14 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
             lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
-            tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
+            tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair; if above used ang=ang4_2sep_direc_gdesics(?), then delete this line
         elif i==2:
             eta1,ds1=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
                                       ar1[i-1]['dec'],ar1[i-1]['inc'],
-                                      ar1[i]['dec'],ar1[i]['inc'],tt1)
+                                      ar1[i]['dec'],ar1[i]['inc'],tt1)  #if above used ang=ang4_2sep_direc_gdesics(?), then replace tt1 with 0
             eta2,ds2=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
                                       ar2[i-1]['dec'],ar2[i-1]['inc'],
-                                      ar2[i]['dec'],ar2[i]['inc'],tt2)
+                                      ar2[i]['dec'],ar2[i]['inc'],tt2)  #if above used ang=ang4_2sep_direc_gdesics(?), then replace tt2 with 0
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)  #------------------------i==2-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
@@ -743,9 +810,9 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                 b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
                 b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
                 eta1r,ds1r=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
-                                            a1x,a1y,a2x,a2y,tt1)
+                                            a1x,a1y,a2x,a2y,tt1)  #if in i==1 used ang=ang4_2sep_direc_gdesics(?), then replace tt1 with 0
                 eta2r,ds2r=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
-                                            b1x,b1y,b2x,b2y,tt2)
+                                            b1x,b1y,b2x,b2y,tt2)  #if in i==1 used ang=ang4_2sep_direc_gdesics(?), then replace tt2 with 0
                 lst_d_ang_a_ras.append(eta1r-eta1)
                 lst_d_ang_ras_rbs.append(eta2r-eta1r)
                 lst_d_leh_a_ras.append(ds1r-ds1)
@@ -760,16 +827,37 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
             tt1,tt2=eta1,eta2
         else:
-            eta1,ds1=ang_len4ge3rd_seg(ar1[0]['dec'],ar1[0]['inc'],ar1[1]['dec'],
-                                       ar1[1]['inc'],ar1[i-1]['dec'],ar1[i-1]['inc'],
-                                       ar1[i]['dec'],ar1[i]['inc'],tt1,filname1)
-            eta2,ds2=ang_len4ge3rd_seg(ar2[0]['dec'],ar2[0]['inc'],ar2[1]['dec'],
-                                       ar2[1]['inc'],ar2[i-1]['dec'],ar2[i-1]['inc'],
-                                       ar2[i]['dec'],ar2[i]['inc'],tt2,filname2)
+            if i==3 and ar1[2]['dec']==ar1[1]['dec'] and ar1[2]['inc']==ar1[1]['inc']:
+                eta1,ds1=ang_len4_2nd_seg(ar1[0]['dec'],ar1[0]['inc'],
+                                          ar1[1]['dec'],ar1[1]['inc'],
+                                          ar1[i]['dec'],ar1[i]['inc'],tt1)  #if 2nd&3rd poles are exactly the same
+            else:
+                try:
+                    eta1,ds1=ang_len4ge3rd_seg(ar1[0]['dec'],ar1[0]['inc'],ar1[1]['dec'],
+                                               ar1[1]['inc'],ar1[i-1]['dec'],ar1[i-1]['inc'],
+                                               ar1[i]['dec'],ar1[i]['inc'],tt1,filname1)
+                except (UnboundLocalError,IndexError):
+                    print("No intersection of trj1 {0} 1st seg {1},{2}-{3},{4} and {5}th seg {6},{7}-{8},{9} found".format(filname1,ar1[0]['dec'],ar1[0]['inc'],ar1[1]['dec'],ar1[1]['inc'],
+                                                                                                                           i,ar1[i-1]['dec'],ar1[i-1]['inc'],ar1[i]['dec'],ar1[i]['inc']))  #if fail, report
+                    break
+            if i==3 and ar2[2]['dec']==ar2[1]['dec'] and ar2[2]['inc']==ar2[1]['inc']:
+                eta2,ds2=ang_len4_2nd_seg(ar2[0]['dec'],ar2[0]['inc'],
+                                          ar2[1]['dec'],ar2[1]['inc'],
+                                          ar2[i]['dec'],ar2[i]['inc'],tt2)  #if 2nd&3rd poles are exactly the same
+            else:
+                try:
+                    eta2,ds2=ang_len4ge3rd_seg(ar2[0]['dec'],ar2[0]['inc'],ar2[1]['dec'],
+                                               ar2[1]['inc'],ar2[i-1]['dec'],ar2[i-1]['inc'],
+                                               ar2[i]['dec'],ar2[i]['inc'],tt2,filname2)
+                except (UnboundLocalError,IndexError):
+                    print("No intersection of trj2 {0} 1st seg {1},{2}-{3},{4} and {5}th seg {6},{7}-{8},{9} found".format(filname2,ar2[0]['dec'],ar2[0]['inc'],ar2[1]['dec'],ar2[1]['inc'],
+                                                                                                                           i,ar2[i-1]['dec'],ar2[i-1]['inc'],ar2[i]['dec'],ar2[i]['inc']))  #if fail, report
+                    break
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)  #------------------------i>=3-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
-            for _ in range(1000):
+            #for _ in range(1000):
+            for _ in range(2):  #for only wanting to see the d_angular
                 a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
                 b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
                 #if fails, run through the failed iteration of the loop again
@@ -808,7 +896,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
         lst_eta2.append(eta2)
         lst_ds1.append(ds1)
         lst_ds2.append(ds2)
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1]))
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1],eta1,eta2,ds1,ds2))
     return lists2array((lst_no,lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,lst_seg0a1,
                         lst_eta1,lst_eta2,lst_seg_d_l,lst_seg0l1,lst_ds1,lst_ds2),
                        ['00_no','01_tstop','10_spa_pol_dif','11_spa_pol_tes',
