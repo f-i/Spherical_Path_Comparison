@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 25Jun2018
+Modified on 01Jul2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.3
+@__version__	:	0.5.4
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -41,7 +41,10 @@ TODO:
     4. Double check function lists2array
 ###--------------------------------------------------------------------------'''
 
-import random,subprocess,os,re, numpy as np
+from os import makedirs,path
+from subprocess import Popen,PIPE
+from random import random
+import re, numpy as np
 from numba import jit  #to accelerate python codes
 
 PLATE_V_MAX_PAST=30  #according to Swanson-Hysell etal.2009, Kulakov etal.2014; today it's about 15.44cm/yr, DeMets etal.2010
@@ -362,7 +365,7 @@ def common_dir_ellip1gen(point,folder='traj1'):
     pole's error ellipse; derived from func 'common_dir_elliptical' for numpy
     void.                                Source: @__author__, Nov2017-Feb2018"""
     if point['n']>25:
-        os.makedirs('/tmp/{0}'.format(folder),exist_ok=True)
+        makedirs('/tmp/{0}'.format(folder),exist_ok=True)
         with open('/tmp/{0}/{1}.txt'.format(folder,point['age'])) as _f_:
             d_l=[[s2f(x) for x in line.split()] for line in _f_]
         bdi=PMAGPY36().di_boot(d_l,nob=1)
@@ -432,12 +435,24 @@ def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
     for j,i in enumerate(lca):
         i_i=re.split(r'\t+',i)
         lcx,lcy=s2f(i_i[0]),s2f(i_i[1])
-        i2n=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lo2,
-                                                                      la2,lcx,
-                                                                      lcy)).decode().rstrip('\n'))
-        i2_=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lom,lam,lon,
-                                                                      lan,lcx,
-                                                                      lcy)).decode().rstrip('\n'))
+        if abs(lcy-la2)<1E-3:
+            i2n=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo1,la1,lcx,lcy,lo2,
+                                                                          la2)).decode().rstrip('\n'))
+        elif abs(lcy-la1)<1E-3:
+            i2n=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lo2,la2,lcx,lcy,lo1,
+                                                                          la1)).decode().rstrip('\n'))
+        else:
+            i2n=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lcx,lcy,lo1,la1,lo2,
+                                                                          la2)).decode().rstrip('\n'))
+        if abs(lcy-lan)<1E-3:
+            i2_=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lom,lam,lcx,lcy,lon,
+                                                                          lan)).decode().rstrip('\n'))
+        elif abs(lcy-lam)<1E-3:
+            i2_=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lon,lan,lcx,lcy,lom,
+                                                                          lam)).decode().rstrip('\n'))
+        else:
+            i2_=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lcx,lcy,lom,lam,lon,
+                                                                          lan)).decode().rstrip('\n'))
         if (i2n<1 or (i2n>179 and i2n<181)) and (i2_<1 or (i2_>179 and i2_<181)):
             if i2n<1: on12=1-i2n
             else: on12=abs(180-i2n)
@@ -748,7 +763,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
     lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
-    for i in range(39,n_row):
+    for i in range(0,n_row):
     #for i in [41,42,43]:
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         #ind,sgd=0,0
@@ -856,8 +871,8 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)  #------------------------i>=3-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
-            #for _ in range(1000):
-            for _ in range(2):  #for only wanting to see the d_angular
+            for _ in range(1000):
+            #for _ in range(2):  #for only wanting to see the d_angular
                 a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
                 b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
                 #if fails, run through the failed iteration of the loop again
@@ -912,8 +927,7 @@ def run_sh(script,stdin=None):
     #Note: by using a list here (['bash', ...]) we avoid quoting issues, as the
     #arguments are passed in exactly this order (spaces, quotes, and newlines
     #won't cause problems):
-    proc=subprocess.Popen(['bash','-c',script],stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,stdin=subprocess.PIPE)
+    proc=Popen(['bash','-c',script],stdout=PIPE,stderr=PIPE,stdin=PIPE)
     stdout,stderr=proc.communicate()
     if proc.returncode:
         raise ScriptException(proc.returncode,stdout,stderr,script)
@@ -1058,8 +1072,9 @@ class PMAGPY36(object):
 
     @jit(nopython=False,parallel=True)
     def dodirot(self,dec,inc,dbar,ibar):
-        """dec=declination,inc=inclination, dbar/ibar are the desired mean direction.
-        Returns the rotated Dec/Inc pair            Source: pmag.py of PmagPy"""
+        """dec=declination,inc=inclination, dbar/ibar are the desired mean
+        direction; Returns the rotated Dec/Inc pair
+        Source: pmag.py of PmagPy"""
         _d_,irot=self.dogeo(dec,inc,dbar,90.-ibar)
         drot=_d_-180.
         #drot,irot=dogeo(dec,inc,Dbar,Ibar)
@@ -1073,7 +1088,7 @@ class PMAGPY36(object):
         """kap is kappa, returns a direction from distribution with mean
         declination of 0, inclination of 90 and kappa of kap
         Source: pmag.py of PmagPy"""
-        r_1,r_2=random.random(),random.random()
+        r_1,r_2=random(),random()
         _l_=np.exp(-2*kap)
         fac=np.sqrt((-np.log(r_1*(1-_l_)+_l_))/(2*kap))
         return 2*np.pi*r_2*180./np.pi,90.-2*np.arcsin(fac)*180./np.pi
@@ -1108,7 +1123,7 @@ def main():
         for wgt in [0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,step,mav,wgt),
                         pnh=1)
-            os.makedirs('/tmp/traj1',exist_ok=True)
+            makedirs('/tmp/traj1',exist_ok=True)
             for i in pmag_pp:
                 print(i['age'])
                 if i['n']>25:
@@ -1116,12 +1131,12 @@ def main():
                                                                                     round(i['age']+step,1),round(i['age']-step,1))
                     raw_dir2='{0}/{1}/{2}/{1}_{2}_{3}_{4}_{5}_{6}/{7}_{8}_WT.d'.format(wer,modl,pid,tbin,step,mav,wgt,
                                                                                        round(i['age']+step,1),round(i['age']-step,1))
-                    raw_pls=ppf1(raw_dir1) if os.path.isfile(raw_dir1) else ppf1(raw_dir2)
+                    raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf1(raw_dir2)
                     print(raw_pls)
                     np.savetxt('/tmp/traj1/{:s}.txt'.format(i['age']),raw_pls,
                                delimiter='	')
             print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
-            os.makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),exist_ok=True)
+            makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),exist_ok=True)
             print(pmag_pp)
             print(modl_pp)
             simil=spa_ang1st_len_dif(pmag_pp,modl_pp,'ar','ar')
@@ -1305,7 +1320,7 @@ def test():
     apwp2=open('/tmp/2.d','w')
     apwp2.write(pwp2)
     apwp2.close()
-    os.makedirs('/tmp/1',exist_ok=True)
+    makedirs('/tmp/1',exist_ok=True)
     apwp1_0=open('/tmp/1/0.txt','w')
     apwp1_0.write(pwp1_0ma)
     apwp1_0.close()
