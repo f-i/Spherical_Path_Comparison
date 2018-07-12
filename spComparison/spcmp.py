@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 01Jul2018
+Modified on 11Jul2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.4
+@__version__	:	0.5.5
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -33,12 +33,11 @@ Environment:
     GMT5 + *NIX(-like) Shell                    (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
-    1. Tidy up subsections in function "spa_ang1st_len_dif";
-    2. Tidy functions up into classes
-    3. Let {plateid}FHS{oldest}predictPWP{bin}{step}.d in main func be in the
+    1. Tidy functions up into classes
+    2. Let {plateid}FHS{oldest}predictPWP{bin}{step}.d in main func be in the
        same column order as ma.py outputed path, i.e. 'dec','inc','age',etc.;
        revisit main func
-    4. Double check function lists2array
+    3. Double check function lists2array
 ###--------------------------------------------------------------------------'''
 
 from os import makedirs,path
@@ -677,7 +676,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                                       ar1[i]['dec'],ar1[i]['inc']) #ds1/2 segment length for trj 1/2
             eta2,ds2=ang_len4_1st_seg(ar2[i-1]['dec'],ar2[i-1]['inc'],
                                       ar2[i]['dec'],ar2[i]['inc'])
-            ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
+            ang=0
             lst_seg0a1.append(0) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
@@ -747,9 +746,11 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
 
 def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
-    (distance) and per-pair-of-coeval-segments' angular and length difs;
-    Here each segment's directional change is always relative to the 1st segment,
-    which is more complex than "relative to its previous segment".
+    (distance) and per-pair-of-coeval-segments' angular and length difs; Here
+    each segment's directional change is always relative to the 1st segment,
+    which is more complex than "relative to its previous segment"; Requires
+    statistical tests on d_a; without tests, could give unexpected d_a, e.g.
+    compr of pairC&D, so deeper tweaks are needed in the future.
     Source: @__author__ and Chris Rowan, Nov2017-Feb2018"""
     if fmt1=='textfile': filname1=re.split('/|\.',trj1)[-2]
     if fmt2=='textfile': filname2=re.split('/|\.',trj2)[-2]
