@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 11Jul2018
+Modified on 15Jul2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.5
+@__version__	:	0.5.6
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -386,8 +386,8 @@ def ang4_2suc_disp_direc_gdesics(lo1,la1,lo2,la2,lo3,la3):
     agl=s2f(run_sh(AZI.format(lo2,la2,lo3,la3)).decode().rstrip('\n'))-\
         s2f(run_sh(AZI.format(lo2,la2,lo1,la1)).decode().rstrip('\n'))
     if agl<-180: agl,sign=360+agl,-1
-    elif agl>=-180 and agl<0: agl,sign=-agl,1
-    elif agl>=0 and agl<180: sign=-1
+    elif -180<=agl<0: agl,sign=-agl,1
+    elif 0<=agl<180: sign=-1
     else: agl,sign=360-agl,1
     return (180-abs(agl))*sign
 
@@ -452,7 +452,7 @@ def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
         else:
             i2_=s2f(run_sh(RELATIVE_LOC_INTERSECTION2NEXT_GEODESIC.format(lcx,lcy,lom,lam,lon,
                                                                           lan)).decode().rstrip('\n'))
-        if (i2n<1 or (i2n>179 and i2n<181)) and (i2_<1 or (i2_>179 and i2_<181)):
+        if (i2n<1 or 179<i2n<181) and (i2_<1 or 179<i2_<181):
             if i2n<1: on12=1-i2n
             else: on12=abs(180-i2n)
             if i2_<1: onmn=1-i2_
@@ -676,8 +676,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                                       ar1[i]['dec'],ar1[i]['inc']) #ds1/2 segment length for trj 1/2
             eta2,ds2=ang_len4_1st_seg(ar2[i-1]['dec'],ar2[i-1]['inc'],
                                       ar2[i]['dec'],ar2[i]['inc'])
-            ang=0
-            lst_seg0a1.append(0) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
+            lst_seg0a1.append(np.nan) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
             for _ in range(1000):
@@ -692,7 +691,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
             lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
-            lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
+            lst_seg_d_a.append(np.nan)
             lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
             tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
         else:
@@ -706,14 +705,14 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             leh=abs(ds1-ds2)  #------------------------i>=2-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
             for _ in range(1000):
+                a0x,a0y=common_dir_ellip1gen(ar1[i-2],folder=filname1)
                 a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
                 a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
+                b0x,b0y=common_dir_ellip1gen(ar2[i-2],folder=filname2)
                 b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
                 b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
-                eta1r,ds1r=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
-                                            a1x,a1y,a2x,a2y,tt1)
-                eta2r,ds2r=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
-                                            b1x,b1y,b2x,b2y,tt2)
+                eta1r,ds1r=ang_len4_2nd_seg(a0x,a0y,a1x,a1y,a2x,a2y,tt1)
+                eta2r,ds2r=ang_len4_2nd_seg(b0x,b0y,b1x,b1y,b2x,b2y,tt2)
                 lst_d_ang_a_ras.append(eta1r-eta1)
                 lst_d_ang_ras_rbs.append(eta2r-eta1r)
                 lst_d_leh_a_ras.append(ds1r-ds1)
@@ -945,7 +944,7 @@ class ScriptException(Exception):
 
 
 
-class PMAGPY36(object):
+class PMAGPY36():
     """PmagPy (https://pmagpy.github.io/) functions below are converted to run
     correctly with Python3.6.x"""
 
