@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 15Jul2018
+Modified on 13Aug2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.6
+@__version__	:	0.5.7
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -29,7 +29,7 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
-    Python3.6.x + NumPy + (Numba, only if using a NVIDIA graphics card)
+    Python3.6/7 + NumPy + (Numba, only if using a NVIDIA graphics card)
     GMT5 + *NIX(-like) Shell                    (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
@@ -222,7 +222,7 @@ def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     try: return float(rdloc[0]),float(rdloc[1])
     except ValueError as err: print("error",err,"on rdloc",rdloc)	#used for debugging
 
-def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=1000,axis_unit=1):
+def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=5000,axis_unit=1):
     """check function ellipsenrmdev_1gen, the difference here is generating a
     certain number of random points              Source: @__author__, Oct2016"""
     if axis_unit==0:	#variance=sigma square
@@ -403,9 +403,9 @@ def ang_len4_1st_seg(p1x,p1y,p2x,p2y):
     return azi,gcd
 
 def ang_len4_2nd_seg(p1x,p1y,p2x,p2y,p3x,p3y,apr):
-    """Calculate direction change and length for the second segment of APWP (a
+    """Calculate orientation change and length for the 2nd segment of APWP (a
     directional geodesic, point 2 [p2x,p2y] pointing to point 3 [p3x,p3y]),
-    compared to the first segment (point 1 [p1x,p1y] pointing to point 2
+    compared to the 1st segment (point 1 [p1x,p1y] pointing to point 2
     [p2x,p2y]); also regarded as two connected directional geodesics with their
     intersection located right at point 2 [p2x,p2y]; apr is the angle change of
     its previous segment, here i.e. the 1st seg  Source: @__author__, Jan2018"""
@@ -660,7 +660,9 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
     for i in range(0,n_row):
-        ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
+    #for i in [19,22]:
+        ind,sgd=0,0
+        #ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         lst_pol_d_s.append(sgd)
         lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -686,8 +688,8 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                 b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
                 _,ds1r=ang_len4_1st_seg(a1x,a1y,a2x,a2y)
                 _,ds2r=ang_len4_1st_seg(b1x,b1y,b2x,b2y)
-                lst_d_leh_a_ras.append(ds1r-ds1)
-                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+                lst_d_leh_a_ras.append(abs(ds1r-ds1))
+                lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
             lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
@@ -713,12 +715,21 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                 b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
                 eta1r,ds1r=ang_len4_2nd_seg(a0x,a0y,a1x,a1y,a2x,a2y,tt1)
                 eta2r,ds2r=ang_len4_2nd_seg(b0x,b0y,b1x,b1y,b2x,b2y,tt2)
-                lst_d_ang_a_ras.append(eta1r-eta1)
-                lst_d_ang_ras_rbs.append(eta2r-eta1r)
-                lst_d_leh_a_ras.append(ds1r-ds1)
-                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+                lst_d_ang_a_ras.append(abs(eta1r-eta1))
+                lst_d_ang_ras_rbs.append(abs(eta2r-eta1r))
+                lst_d_leh_a_ras.append(abs(ds1r-ds1))
+                lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
+            #####################SAVE#TrajI#VS#TrajI#########START########
+            i_i=open('/tmp/{0}i_i.d'.format(i),'w')
+            for j in lst_d_ang_a_ras: i_i.write("%s\n" % j)
+            i_i.close()  ########SAVE#TrajI#VS#TrajI##########END#########
+            #####################SAVE#TrajI#VS#TrajII########START########
+            i_ii=open('/tmp/{0}i_ii.d'.format(i),'w')
+            for j in lst_d_ang_ras_rbs: i_ii.write("%s\n" % j)
+            i_ii.close()  #######SAVE#TrajI#VS#TrajII#########END#########
             au_=np.percentile(lst_d_ang_a_ras,97.5)
             al_=np.percentile(lst_d_ang_ras_rbs,2.5)
+            #print(au_,al_)
             lst_seg0a1.append(0 if au_>al_ else 1)
             lu_=np.percentile(lst_d_leh_a_ras,97.5)
             ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
@@ -764,9 +775,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
     for i in range(0,n_row):
-    #for i in [41,42,43]:
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
-        #ind,sgd=0,0
         lst_pol_d_s.append(sgd)
         lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -801,8 +810,8 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                 b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
                 _,ds1r=ang_len4_1st_seg(a1x,a1y,a2x,a2y)
                 _,ds2r=ang_len4_1st_seg(b1x,b1y,b2x,b2y)
-                lst_d_leh_a_ras.append(ds1r-ds1)
-                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+                lst_d_leh_a_ras.append(abs(ds1r-ds1))
+                lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
             lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
@@ -820,18 +829,18 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             leh=abs(ds1-ds2)  #------------------------i==2-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
             for _ in range(1000):
+                a0x,a0y=common_dir_ellip1gen(ar1[i-2],folder=filname1)
                 a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
                 a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
+                b0x,b0y=common_dir_ellip1gen(ar2[i-2],folder=filname2)
                 b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
                 b2x,b2y=common_dir_ellip1gen(ar2[i],folder=filname2)
-                eta1r,ds1r=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
-                                            a1x,a1y,a2x,a2y,tt1)  #if in i==1 used ang=ang4_2sep_direc_gdesics(?), then replace tt1 with 0
-                eta2r,ds2r=ang_len4_2nd_seg(ar2[i-2]['dec'],ar2[i-2]['inc'],
-                                            b1x,b1y,b2x,b2y,tt2)  #if in i==1 used ang=ang4_2sep_direc_gdesics(?), then replace tt2 with 0
-                lst_d_ang_a_ras.append(eta1r-eta1)
-                lst_d_ang_ras_rbs.append(eta2r-eta1r)
-                lst_d_leh_a_ras.append(ds1r-ds1)
-                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+                eta1r,ds1r=ang_len4_2nd_seg(a0x,a0y,a1x,a1y,a2x,a2y,tt1)  #if in i==1 used ang=ang4_2sep_direc_gdesics(?), then replace tt1 with 0
+                eta2r,ds2r=ang_len4_2nd_seg(b0x,b0y,b1x,b1y,b2x,b2y,tt2)  #if in i==1 used ang=ang4_2sep_direc_gdesics(?), then replace tt2 with 0
+                lst_d_ang_a_ras.append(abs(eta1r-eta1))
+                lst_d_ang_ras_rbs.append(abs(eta2r-eta1r))
+                lst_d_leh_a_ras.append(abs(ds1r-ds1))
+                lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             au_=np.percentile(lst_d_ang_a_ras,97.5)
             al_=np.percentile(lst_d_ang_ras_rbs,2.5)
             lst_seg0a1.append(0 if au_>al_ else 1)
@@ -892,10 +901,10 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                                                      b1x,b1y,b2x,b2y,tt2,filname2)
                     except (UnboundLocalError,IndexError): continue
                     break
-                lst_d_ang_a_ras.append(eta1r-eta1)
-                lst_d_ang_ras_rbs.append(eta2r-eta1r)
-                lst_d_leh_a_ras.append(ds1r-ds1)
-                lst_d_leh_ras_rbs.append(ds2r-ds1r)
+                lst_d_ang_a_ras.append(abs(eta1r-eta1))
+                lst_d_ang_ras_rbs.append(abs(eta2r-eta1r))
+                lst_d_leh_a_ras.append(abs(ds1r-ds1))
+                lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             au_=np.percentile(lst_d_ang_a_ras,97.5)
             al_=np.percentile(lst_d_ang_ras_rbs,2.5)
             lst_seg0a1.append(0 if au_>al_ else 1)
