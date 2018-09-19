@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 13Aug2018
+Modified on 19Aug2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.7
+@__version__	:	0.5.8
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -186,10 +186,11 @@ def ppf1(fname):
     """parse raw vgp file, from ASCII data to numpy array
     Source: @__author__, Feb2018"""
     pdl="\t"
-    puc=(0,1,4,5)
-    pdt="f8,f8,f8,f8"
+    puc=(0,1,2,4,5)
+    pdt="f8,f8,i2,f8,f8"
     vgp=np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,names=True)
-    return np.insert(vgp,2,1,axis=1)
+    vgp['ED95']=1  #col name 'ED95' is used to store weights
+    return vgp
 
 def cumulative_sum4list(lst):
     """generate a list that stores the cumulative sum of integers, e.g., if my
@@ -216,7 +217,7 @@ def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
     #cov: covariance; the covariance matrix is diagonal
     pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=dros) #to rotate the ellipse, multiply a matrix; read fig/gaussians.pdf (http://cs229.stanford.edu/section/gaussians.pdf)
-    rnd=PMAGPY36().vector_mean(np.c_[pts,np.ones(dros)])[0][:2]
+    rnd=PMAGPY3().vector_mean(np.c_[pts,np.ones(dros)])[0][:2]
     rdl=run_sh(ASSIGN_AZI4ROTATED_ELLIP.format(lon,lat,rnd[0],rnd[1],azi))  #see more info from https://pyformat.info/
     rdloc=re.split(r'\t+',rdl.decode().rstrip('\n'))
     try: return float(rdloc[0]),float(rdloc[1])
@@ -237,7 +238,7 @@ def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=5000,axis_unit=1):
 def get_bounds(d_i):
     """Source: Chris Rowan, 2016"""
     bounds=[] #2sigma bounds
-    cart=PMAGPY36().dir2cart(d_i).transpose() #convert to cartesian coordinates
+    cart=PMAGPY3().dir2cart(d_i).transpose() #convert to cartesian coordinates
     mim=int(.025*len(cart[0]))
     mam=int(.975*len(cart[0]))
     for i in range(3):
@@ -266,13 +267,13 @@ def get_fsh(dire):
     (D,I,N,k) in a numpy void. Source: Chris Rowan and @__author__, 2016-2018"""
     _d_,_i_=[],[]
     for _ in range(int(dire['n'])):
-        dec,inc=PMAGPY36().fshdev(dire['k'])
-        drot,irot=PMAGPY36().dodirot(dec,inc,dire['dec'],dire['inc'])
+        dec,inc=PMAGPY3().fshdev(dire['k'])
+        drot,irot=PMAGPY3().dodirot(dec,inc,dire['dec'],dire['inc'])
         _d_.append(drot)
         _i_.append(irot)
     return np.column_stack((_d_,_i_))
 
-def common_dir_elliptical(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
+def common_dir_elliptical(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     """po1/2 (pole1/2 in Path1/2): numpy void; da1/2: a nested list of
     directional data [dec,inc] (a di_block). Note that boots(teps)=1000 could be
     insufficient for when 1<n<=25, at least 5000 is needed to ensure result >95%
@@ -284,30 +285,30 @@ def common_dir_elliptical(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
     if po1['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(int(po1['age'])))) as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
-        bdi1=PMAGPY36().di_boot(da1)
+        bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
         bdi1=[]
         for _ in range(boots):
             dir1=po1[['dec','inc','k','n']]
-            fpars1=PMAGPY36().fisher_mean(get_fsh(dir1))
+            fpars1=PMAGPY3().fisher_mean(get_fsh(dir1))
             bdi1.append([fpars1['dec'],fpars1['inc']])
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
-                                       po1['dm'],po1['dp'],dros)
+                                       po1['dm'],po1['dp'])
         bdi1=np.column_stack((lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(int(po2['age'])))) as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
-        bdi2=PMAGPY36().di_boot(da2)
+        bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
         bdi2=[]
         for _ in range(boots):
             dir2=po2[['dec','inc','k','n']]
-            fpars2=PMAGPY36().fisher_mean(get_fsh(dir2))
+            fpars2=PMAGPY3().fisher_mean(get_fsh(dir2))
             bdi2.append([fpars2['dec'],fpars2['inc']])
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
-                                       po2['dm'],po2['dp'],dros)
+                                       po2['dm'],po2['dp'])
         bdi2=np.column_stack((lons2,lats2))
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)
@@ -315,40 +316,40 @@ def common_dir_elliptical(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
     _o_=1 if sum(out)>=1 else 0  #1 distinguishable, 0 indistinguishable
-    _a_=PMAGPY36().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
+    _a_=PMAGPY3().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
     return _o_,_a_[0]
 
-def common_dir_elliptica_(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
+def common_dir_elliptica_(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     """derived from the function 'common_dir_elliptical'; the difference here is
     this function is using 'get_bounds2d' func to more accurately process the
     bounds of random pole vectors                Source: @__author__, Apr2018"""
     if po1['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(int(po1['age'])))) as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
-        bdi1=PMAGPY36().di_boot(da1)
+        bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
         bdi1=[]
         for _ in range(boots):
             dir1=po1[['dec','inc','k','n']]
-            fpars1=PMAGPY36().fisher_mean(get_fsh(dir1))
+            fpars1=PMAGPY3().fisher_mean(get_fsh(dir1))
             bdi1.append([fpars1['dec'],fpars1['inc']])
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
-                                       po1['dm'],po1['dp'],dros)
+                                       po1['dm'],po1['dp'])
         bdi1=np.column_stack((lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(int(po2['age'])))) as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
-        bdi2=PMAGPY36().di_boot(da2)
+        bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
         bdi2=[]
         for _ in range(boots):
             dir2=po2[['dec','inc','k','n']]
-            fpars2=PMAGPY36().fisher_mean(get_fsh(dir2))
+            fpars2=PMAGPY3().fisher_mean(get_fsh(dir2))
             bdi2.append([fpars2['dec'],fpars2['inc']])
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
-                                       po2['dm'],po2['dp'],dros)
+                                       po2['dm'],po2['dp'])
         bdi2=np.column_stack((lons2,lats2))
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds2d(bdi1),get_bounds2d(bdi2)
@@ -356,7 +357,7 @@ def common_dir_elliptica_(po1,po2,dros=1000,boots=5000,fn1='file1',fn2='file2'):
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
     _o_=1 if sum(out)==2 else 0  #1 distinguishable, 0 indistinguishable
-    _a_=PMAGPY36().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
+    _a_=PMAGPY3().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
     return _o_,_a_[0]
 
 def common_dir_ellip1gen(point,folder='traj1'):
@@ -367,11 +368,11 @@ def common_dir_ellip1gen(point,folder='traj1'):
         makedirs('/tmp/{0}'.format(folder),exist_ok=True)
         with open('/tmp/{0}/{1}.txt'.format(folder,point['age'])) as _f_:
             d_l=[[s2f(x) for x in line.split()] for line in _f_]
-        bdi=PMAGPY36().di_boot(d_l,nob=1)
+        bdi=PMAGPY3().di_boot(d_l,nob=1)
         lon,lat=bdi[0][0],bdi[0][1]
     elif point['n']<=25 and point['n']>1:
         _d_=point[['dec','inc','k','n']]
-        fpars=PMAGPY36().fisher_mean(get_fsh(_d_))
+        fpars=PMAGPY3().fisher_mean(get_fsh(_d_))
         lon,lat=fpars['dec'],fpars['inc']
     else:
         lon,lat=ellipsenrmdev_1gen(point['dec'],point['inc'],point['dm_azi'],
@@ -399,7 +400,7 @@ def ang_len4_1st_seg(p1x,p1y,p2x,p2y):
     if p1x==p2x and p1y==p2y: azi,gcd=0,0
     else:
         azi=s2f(run_sh(AZI.format(p1x,p1y,p2x,p2y)).decode().rstrip('\n'))
-        gcd=s2f(PMAGPY36().angle((p1x,p1y),(p2x,p2y)))  #segment length
+        gcd=s2f(PMAGPY3().angle((p1x,p1y),(p2x,p2y)))  #segment length
     return azi,gcd
 
 def ang_len4_2nd_seg(p1x,p1y,p2x,p2y,p3x,p3y,apr):
@@ -412,7 +413,7 @@ def ang_len4_2nd_seg(p1x,p1y,p2x,p2y,p3x,p3y,apr):
     if p2x==p3x and p2y==p3y: agc,leh=apr,0.
     else:
         agc=ang4_2suc_disp_direc_gdesics(p1x,p1y,p2x,p2y,p3x,p3y)
-        leh=s2f(PMAGPY36().angle((p2x,p2y),(p3x,p3y)))
+        leh=s2f(PMAGPY3().angle((p2x,p2y),(p3x,p3y)))
     return agc,leh
 
 def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
@@ -463,7 +464,7 @@ def ang4_2sep_direc_gdesics(lo1,la1,lo2,la2,lom,lam,lon,lan,filname):
     imi=min(isd['on12'].argsort()[0],isd['onmn'].argsort()[0])  #if isd is empty, IndexError: index 0 is out of bounds for axis 0 with size 0, which normally should not happen
     lcx,lcy=isd['lon'][imi],isd['lat'][imi]
     #in case the intersection is the same as or extremely close to the arrow point of the 1st geodesic
-    if s2f(PMAGPY36().angle((lo2,la2),(lcx,lcy)))<1E-2:
+    if s2f(PMAGPY3().angle((lo2,la2),(lcx,lcy)))<1E-2:
         #2nd point is pole long/lat (the correct one of two intersections)
         agl=ang4_2suc_disp_direc_gdesics(lo1,la1,lcx,lcy,lon,lan)
     #determine the relative location of the intersection to the 1st geodesic
@@ -483,7 +484,7 @@ def ang_len4ge3rd_seg(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,apr,filname):
     if pmx==pnx and pmy==pny: agc,leh=apr,0.
     else:
         agc=ang4_2sep_direc_gdesics(p1x,p1y,p2x,p2y,pmx,pmy,pnx,pny,filname)
-        leh=s2f(PMAGPY36().angle((pmx,pmy),(pnx,pny)))
+        leh=s2f(PMAGPY3().angle((pmx,pmy),(pnx,pny)))
     return agc,leh
 
 def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
@@ -503,16 +504,16 @@ def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             ds1=0.
             eta1=tt1
         else:
-            ds1=s2f(PMAGPY36().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),
-                                     (ar1[i]['dec'],ar1[i]['inc'])))
+            ds1=s2f(PMAGPY3().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),
+                                    (ar1[i]['dec'],ar1[i]['inc'])))
             eta1=s2f(run_sh(AZI.format(ar1[i-1]['dec'],ar1[i-1]['inc'],ar1[i]['dec'],
                                        ar1[i]['inc'])).decode().rstrip('\n'))
         if ar2[i-1]['dec']==ar2[i]['dec'] and ar2[i-1]['inc']==ar2[i]['inc']:
             ds2=0.
             eta2=tt2
         else:
-            ds2=s2f(PMAGPY36().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),
-                                     (ar2[i]['dec'],ar2[i]['inc'])))
+            ds2=s2f(PMAGPY3().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),
+                                    (ar2[i]['dec'],ar2[i]['inc'])))
             eta2=s2f(run_sh(AZI.format(ar2[i-1]['dec'],ar2[i-1]['inc'],ar2[i]['dec'],
                                        ar2[i]['inc'])).decode().rstrip('\n'))
         if tt1>eta1 and tt1-eta1>180.: eta1=eta1+360.  #needs to brainstorm for a while, but now it is right
@@ -572,8 +573,8 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
     for i in range(1,n_row):  #when n=0, no sense of shape cuz only a pair of poles exist
         if i==n_row-1:
             eta1,eta2,ang=0.,0.,0.
-            ds1=0. if ar1[i-1]['dec']==ar1[i]['dec'] and ar1[i-1]['inc']==ar1[i]['inc'] else s2f(PMAGPY36().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),(ar1[i]['dec'],ar1[i]['inc'])))
-            ds2=0. if ar2[i-1]['dec']==ar2[i]['dec'] and ar2[i-1]['inc']==ar2[i]['inc'] else s2f(PMAGPY36().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),(ar2[i]['dec'],ar2[i]['inc'])))
+            ds1=0. if ar1[i-1]['dec']==ar1[i]['dec'] and ar1[i-1]['inc']==ar1[i]['inc'] else s2f(PMAGPY3().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),(ar1[i]['dec'],ar1[i]['inc'])))
+            ds2=0. if ar2[i-1]['dec']==ar2[i]['dec'] and ar2[i-1]['inc']==ar2[i]['inc'] else s2f(PMAGPY3().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),(ar2[i]['dec'],ar2[i]['inc'])))
             leh=abs(ds1-ds2)
             dt_=abs(ar1[i]['age']-ar1[i-1]['age'])
             seg_a_dt=0.
@@ -589,8 +590,8 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
                                                   ar1[i]['inc'],
                                                   ar1[i+1]['dec'],
                                                   ar1[i+1]['inc'])
-                ds1=s2f(PMAGPY36().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),
-                                         (ar1[i]['dec'],ar1[i]['inc'])))
+                ds1=s2f(PMAGPY3().angle((ar1[i-1]['dec'],ar1[i-1]['inc']),
+                                        (ar1[i]['dec'],ar1[i]['inc'])))
             if ar2[i-1]['dec']==ar2[i]['dec'] and ar2[i-1]['inc']==ar2[i]['inc']:
                 eta2=tt2
                 ds2=0.
@@ -601,8 +602,8 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
                                                   ar2[i]['inc'],
                                                   ar2[i+1]['dec'],
                                                   ar2[i+1]['inc'])
-                ds2=s2f(PMAGPY36().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),
-                                         (ar2[i]['dec'],ar2[i]['inc'])))
+                ds2=s2f(PMAGPY3().angle((ar2[i-1]['dec'],ar2[i-1]['inc']),
+                                        (ar2[i]['dec'],ar2[i]['inc'])))
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)
             dt_=abs(ar1[i]['age']-ar1[i-1]['age'])
@@ -953,9 +954,9 @@ class ScriptException(Exception):
 
 
 
-class PMAGPY36():
+class PMAGPY3():
     """PmagPy (https://pmagpy.github.io/) functions below are converted to run
-    correctly with Python3.6.x"""
+    correctly with Python3.6/7"""
 
     def __init__(self):
         pass
@@ -1142,14 +1143,15 @@ def main():
                                                                                        round(i['age']+step,1),round(i['age']-step,1))
                     raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf1(raw_dir2)
                     print(raw_pls)
-                    np.savetxt('/tmp/traj1/{:s}.txt'.format(i['age']),raw_pls,
+                    np.savetxt("/tmp/traj1/"+str(i['age'])+".txt",raw_pls,
                                delimiter='	')
             print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
-            makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),exist_ok=True)
+            makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),
+                     exist_ok=True)
             print(pmag_pp)
             print(modl_pp)
-            simil=spa_ang1st_len_dif(pmag_pp,modl_pp,'ar','ar')
-            np.savetxt('{0}/{1}_{2}/{3}_{4}_simil/{1}_{2}_{3}_{4}_{5}_{6}.d'.format(wer,modl,pid,tbin,step,mav,wgt),
+            simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar')
+            np.savetxt(wer+"/"+modl+"_"+pid+"/"+str(tbin)+"_"+str(step)+"_simil/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+".d",
                        simil,delimiter='	')
             print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
 
@@ -1337,7 +1339,7 @@ def test():
     apwp1_5.write(pwp1_5ma)
     apwp1_5.close()
 
-    diff=spa_ang1st_len_dif('/tmp/1.d','/tmp/2.d')
+    diff=spa_angpre_len_dif('/tmp/1.d','/tmp/2.d')
     print(diff)
 
 if __name__=="__main__": main()
