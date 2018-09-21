@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 19Aug2018
+Modified on 21Sep2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.8
+@__version__	:	0.5.9
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -35,8 +35,7 @@ Environment:
 TODO:
     1. Tidy functions up into classes
     2. Let {plateid}FHS{oldest}predictPWP{bin}{step}.d in main func be in the
-       same column order as ma.py outputed path, i.e. 'dec','inc','age',etc.;
-       revisit main func
+       same column order as ma.py outputed path, i.e. 'dec','inc','age',etc.
     3. Double check function lists2array
 ###--------------------------------------------------------------------------'''
 
@@ -168,23 +167,25 @@ def ppf(fname,pnh=1):
     Source: @__author__, Feb2018"""
     pdl="\t"
     puc=(0,1,2,3,4,5,6,7)  #so far not using age range (8,9) yet
-    pdt=[('dec','<f8'),('inc','<f8'),('age','<i2'),('dm','<f8'),('dp','<f8'),
+    pdt=[('dec','<f8'),('inc','<f8'),('age','<f2'),('dm','<f8'),('dp','<f8'),
          ('dm_azi','<f8'),('k','<f4'),('n','<i2'),('possib_loest_age','<f4'),
          ('possib_hiest_age','<f4')] #f4:float32,f8:float64,i2:int16
     return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
 
 def ppf0(fname,pnh=0):
     """parse model-predicted path file, from ASCII data to numpy array
-    Source: @__author__, Feb2018"""
+    Source: @__author__, Feb-Sep2018"""
     pdl="\t"
-    puc=(0,1,2,3,4,5)
-    pdt=[('dec','<f8'),('inc','<f8'),('age','<i2'),('dm_azi','<f8'),
-         ('dm','<f8'),('dp','<f8')]
-    return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
+    puc=(0,1,2,3,4,5,2)
+    pdt=[('dec','<f8'),('inc','<f8'),('age','<f2'),('dm_azi','<f8'),
+         ('dm','<f8'),('dp','<f8'),('n','<i2')]
+    vgp=np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
+    vgp['n']=1
+    return vgp
 
 def ppf1(fname):
     """parse raw vgp file, from ASCII data to numpy array
-    Source: @__author__, Feb2018"""
+    Source: @__author__, Feb-Sep2018"""
     pdl="\t"
     puc=(0,1,2,4,5)
     pdt="f8,f8,i2,f8,f8"
@@ -283,7 +284,7 @@ def common_dir_elliptical(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     For n>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
     Source: @__author__ and Chris Rowan, 2016-Feb2018"""
     if po1['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(int(po1['age'])))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age']))) as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
         bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
@@ -297,7 +298,7 @@ def common_dir_elliptical(po1,po2,boots=5000,fn1='file1',fn2='file2'):
                                        po1['dm'],po1['dp'])
         bdi1=np.column_stack((lons1,lats1))
     if po2['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(int(po2['age'])))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
         bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
@@ -324,7 +325,7 @@ def common_dir_elliptica_(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     this function is using 'get_bounds2d' func to more accurately process the
     bounds of random pole vectors                Source: @__author__, Apr2018"""
     if po1['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(int(po1['age'])))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age']))) as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
         bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
@@ -338,7 +339,7 @@ def common_dir_elliptica_(po1,po2,boots=5000,fn1='file1',fn2='file2'):
                                        po1['dm'],po1['dp'])
         bdi1=np.column_stack((lons1,lats1))
     if po2['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(int(po2['age'])))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
         bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
@@ -642,7 +643,7 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
                            [np.uint8,'<i2','<f8','<f8','<f8','<f8','<f8','<f8',
                             '<f8','<f8','<f8','<f8'])
 
-def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
+def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,dfn1='',dfn2=''):
     """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
     (distance) and per-pair-of-coeval-segments' angular and length difs;
     Here each segment's directional change is always relative to its previous
@@ -650,6 +651,8 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     Source: @__author__, Jan2018"""
     if fmt1=='textfile': filname1=re.split('/|\.',trj1)[-2]
     if fmt2=='textfile': filname2=re.split('/|\.',trj2)[-2]
+    if fmt1=='ar': filname1=dfn1
+    if fmt2=='ar': filname2=dfn2
     ar1=trj1 if fmt1=='ar' else ppf(trj1,pnh1)  #sep default as tab
     ar2=trj2 if fmt2=='ar' else ppf(trj2,pnh2)
     ar1=ar1[np.in1d(ar1[:]['age'],ar2[:]['age'])]  #remove age-unpaired rows in both arrays
@@ -1133,7 +1136,7 @@ def main():
         for wgt in [0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,step,mav,wgt),
                         pnh=1)
-            makedirs('/tmp/traj1',exist_ok=True)
+            makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt),exist_ok=True)
             for i in pmag_pp:
                 print(i['age'])
                 if i['n']>25:
@@ -1143,14 +1146,14 @@ def main():
                                                                                        round(i['age']+step,1),round(i['age']-step,1))
                     raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf1(raw_dir2)
                     print(raw_pls)
-                    np.savetxt("/tmp/traj1/"+str(i['age'])+".txt",raw_pls,
-                               delimiter='	')
+                    np.savetxt("/tmp/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+"/"+str(i['age'])+".txt",
+                               raw_pls,delimiter='	')
             print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
             makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),
                      exist_ok=True)
             print(pmag_pp)
             print(modl_pp)
-            simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar')
+            simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1='{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt))
             np.savetxt(wer+"/"+modl+"_"+pid+"/"+str(tbin)+"_"+str(step)+"_simil/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+".d",
                        simil,delimiter='	')
             print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
