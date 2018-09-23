@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 22Sep2018
+Modified on 23Sep2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.6.0
+@__version__	:	0.6.1
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -33,8 +33,8 @@ Environment:
     GMT5 + *NIX(-like) Shell                    (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
-    1. Tidy functions up into classes
-    2. Double check function lists2array
+    1. Double check function lists2array
+    2. Tidy functions up into classes
 ###--------------------------------------------------------------------------'''
 
 from os import makedirs,path
@@ -638,7 +638,7 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
                             '25_ang_seg_dif_dt_accum','26_ang_seg_dif_dt_mean',
                             '30_len_seg_dif','34_len_seg_dif_accum',
                             '35_len_seg_dif_mean','41_shape_dif'],
-                           [np.uint8,'<i2','<f8','<f8','<f8','<f8','<f8','<f8',
+                           [np.uint8,'<f2','<f8','<f8','<f8','<f8','<f8','<f8',
                             '<f8','<f8','<f8','<f8'])
 
 def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,dfn1='',dfn2=''):
@@ -663,8 +663,8 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
     for i in range(0,n_row):
     #for i in [19,22]:
-        ind,sgd=0,0
-        #ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
+        #ind,sgd=0,0
+        ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         lst_pol_d_s.append(sgd)
         lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -753,7 +753,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
                         '20_ang_seg_dif','21_ang_seg_tes','22_course_seg1',
                         '23_course_seg2','30_len_seg_dif','31_len_seg_tes',
                         '32_len_seg1','33_len_seg2'],
-                       ['<i2','<i2','<f8','<i1','<f8','<i1','<f8',
+                       ['<i2','<f2','<f8','<i1','<f8','<i1','<f8',
                         '<f8','<f8','<i1','<f8','<f8'])
 
 def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
@@ -929,7 +929,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                         '20_ang_seg_dif','21_ang_seg_tes','22_course_seg1',
                         '23_course_seg2','30_len_seg_dif','31_len_seg_tes',
                         '32_len_seg1','33_len_seg2'],
-                       ['<i2','<i2','<f8','<i1','<f8','<i1','<f8','<f8','<f8',
+                       ['<i2','<f2','<f8','<i1','<f8','<i1','<f8','<f8','<f8',
                         '<i1','<f8','<f8'])  #int8,int16,int32,int64 can be replaced by equivalent string 'i1','i2','i4',etc.
 
 def run_sh(script,stdin=None):
@@ -1118,7 +1118,7 @@ class PMAGPY3():
         return dire,_r_
 
 def main():
-    """Run this module"""
+    """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
     #-------------Prepare Model Predicted APWP----------------------------------
     modl_pp=ppf0('/home/i/Desktop/git/digivisual/tmp/701FHS120predictPWP105.d')
     modl_pp[:]['dm']/=111.195051975
@@ -1128,13 +1128,16 @@ def main():
     tbin=10		#18,10,2
     step=5	#9,5,1
     modl='dm16'
-    pid='701comb'
-    wer='/run/media/i/s'
-    for mav in [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in [0,1,2,3,4,5]:
-            pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,step,mav,wgt),
+    pid='101comb'
+    wer='/home/i/tmp'
+    for mav in [0]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+        for wgt in [4,5]:  #[0,1,2,3,4,5]:
+            pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
+                                                                         step,mav,wgt),
                         pnh=1)
-            makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt),exist_ok=True)
+            makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,
+                                                           mav,wgt),
+                     exist_ok=True)
             for i in pmag_pp:
                 print(i['age'])
                 if i['n']>25:
