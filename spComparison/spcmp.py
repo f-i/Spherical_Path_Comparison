@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 21Sep2018
+Modified on 22Sep2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.5.9
+@__version__	:	0.6.0
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -34,9 +34,7 @@ Environment:
 --------------------------------------------------------------------------------
 TODO:
     1. Tidy functions up into classes
-    2. Let {plateid}FHS{oldest}predictPWP{bin}{step}.d in main func be in the
-       same column order as ma.py outputed path, i.e. 'dec','inc','age',etc.
-    3. Double check function lists2array
+    2. Double check function lists2array
 ###--------------------------------------------------------------------------'''
 
 from os import makedirs,path
@@ -1155,7 +1153,7 @@ def main():
             print(modl_pp)
             simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1='{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt))
             np.savetxt(wer+"/"+modl+"_"+pid+"/"+str(tbin)+"_"+str(step)+"_simil/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+".d",
-                       simil,delimiter='	')
+                       simil,delimiter='	',fmt='%s')
             print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
 
 def test():
