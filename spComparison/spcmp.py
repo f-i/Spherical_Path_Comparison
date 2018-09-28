@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 23Sep2018
+Modified on 27Sep2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.6.1
+@__version__	:	0.6.3
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -33,8 +33,7 @@ Environment:
     GMT5 + *NIX(-like) Shell                    (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
-    1. Double check function lists2array
-    2. Tidy functions up into classes
+    1. Tidy functions up into classes
 ###--------------------------------------------------------------------------'''
 
 from os import makedirs,path
@@ -197,10 +196,11 @@ def cumulative_sum4list(lst):
     Source: @__author__, Feb2018"""
     return list(np.cumsum(lst))
 
-def lists2array(lsts,nms,fmts):
-    """lsts: tuple of lists; nms: list of lists' names; fmts: list of lists'
-    dtypes                                       Source: @__author__, Feb2018"""
-    return np.array(np.column_stack(lsts),np.dtype({'names':nms,'formats':fmts}))
+def structured_array(lst,nms,fmt):
+    """lst: layers of tuples (e.g. single tuple (a,b,c)); nms: names of columns;
+    fmt: dtypes of columns, e.g. int8,int16,int32,int64 can be replaced by
+    equivalent string 'i1','i2','i4','i8'        Source: @__author__, Sep2018"""
+    return np.array(lst,np.dtype({'names':nms,'formats':fmt}))
 
 def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     """originate random points around (0,0) on 2D plane; then rotate (0,0) with
@@ -496,8 +496,8 @@ def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     len1,len2,tt1,tt2,w_s,w_a=0,0,0,0,1/3,1/3  #len1/2 accumulative dif of length for trj 1/2
     accum_seg_a,accum_seg_l,accum_seg_a_dt,ma_seg_l,accum_ma_seg_l=0,0,0,0,0  #max of one section length of trj 1&2; accumulative all ma_seg_l
     n_row=len(ar2)
+    lst=[]
     lst_seg_d_a,lst_seg_d_l=[],[]
-    lst_accum_seg_a_dt,lst_no,lst_eta1,lst_eta2=[],[],[],[]
     for i in range(1,n_row):
         if ar1[i-1]['dec']==ar1[i]['dec'] and ar1[i-1]['inc']==ar1[i]['inc']:
             ds1=0.
@@ -526,33 +526,27 @@ def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
         leh=abs(ds1-ds2)
         seg_a_dt=ang*abs(ds1)
         tt1,tt2=eta1,eta2
-        lst_no.append(i)
         lst_seg_d_a.append(ang)
         lst_seg_d_l.append(leh)
         accum_seg_a=accum_seg_a+ang  #angular difference
         accum_seg_l=accum_seg_l+leh  #length difference
         accum_seg_a_dt=accum_seg_a_dt+seg_a_dt  #Function (9) in Qi16
-        lst_accum_seg_a_dt.append(accum_seg_a_dt)
-        lst_eta1.append(eta1)
-        lst_eta2.append(eta2)
         len1+=ds1
         len2+=ds2
         ma_seg_l=max(ds1,ds2)
         accum_ma_seg_l+=ma_seg_l
+        lst.append((i,ang,eta1,eta2,cumulative_sum4list(lst_seg_d_a)[-1],accum_seg_a_dt,leh,cumulative_sum4list(lst_seg_d_l)[-1]))
     divisor_l=accum_ma_seg_l
     divisor_a=180.*(n_row-1)
     #Qi16 functions might referred to Su15
     print(w_a*accum_seg_a/divisor_a + (1.-w_s-w_a)*accum_seg_l/divisor_l)
     print('Attn: For total dif, weights Ws & Wa are {} and {} repectively'.format(w_s,w_a))
-    return lists2array((lst_no,lst_seg_d_a,lst_eta1,lst_eta2,
-                        cumulative_sum4list(lst_seg_d_a),lst_accum_seg_a_dt,
-                        lst_seg_d_l,cumulative_sum4list(lst_seg_d_l)),
-                       ['00_no','20_ang_seg_dif','22_course_seg1',
-                        '23_course_seg2','24_ang_seg_dif_accum',
-                        '25_ang_seg_dif_dt_accum','30_len_seg_dif',
-                        '34_len_seg_dif_accum'],
-                       [np.uint8,np.float64,np.float64,np.float64,np.float64,
-                        np.float64,np.float64,np.float64])
+    return structured_array(lst,['00_no','20_ang_seg_dif','22_course_seg1',
+                                 '23_course_seg2','24_ang_seg_dif_accum',
+                                 '25_ang_seg_dif_dt_accum','30_len_seg_dif',
+                                 '34_len_seg_dif_accum'],
+                            [np.uint8,np.float64,np.float64,np.float64,
+                             np.float64,np.float64,np.float64,np.float64])
 
 def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0):
     """shape difference includes both angular and length difs; Similar to the
@@ -566,9 +560,9 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
     w_a,w_l,tt1,tt2,len1,len2=1/2,1/2,0,0,0,0  #tt1/2 intermedium segment azimuth for trj 1/2
     accum_seg_l,accum_seg_a_dt=0,0
     n_row=min(len(ar1),len(ar2))
-    lst_seg_d_a,lst_accum_seg_a_dt,lst_mean_seg_a_dt=[],[],[]  #directional diff
-    lst_seg_d_l,lst_mean_seg_l=[],[]  #segment length diff
-    lst_no,lst_t,lst_eta1,lst_eta2,d_shp_l=[],[],[],[],[]
+    lst=[]
+    lst_seg_d_a=[]  #directional diff
+    lst_seg_d_l=[]  #segment length diff
     for i in range(1,n_row):  #when n=0, no sense of shape cuz only a pair of poles exist
         if i==n_row-1:
             eta1,eta2,ang=0.,0.,0.
@@ -608,38 +602,32 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
             dt_=abs(ar1[i]['age']-ar1[i-1]['age'])
             seg_a_dt=ang*dt_
             tt1,tt2=eta1,eta2
-        lst_eta1.append(eta1)
-        lst_eta2.append(eta2)
         len1+=ds1
         len2+=ds2
-        lst_no.append(i)
-        lst_t.append(ar1[i]['age'])  #cuz that ar1&2 ages are synchronized is required here, so ar2[i]['age'] is also ok
         lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
         accum_seg_a_dt+=seg_a_dt  #similar to function (9) in Qi16
         lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
         accum_seg_l+=leh  #length difference
         (mean_seg_a_dt,mean_seg_l)=(0.,0.) if i==0 else (accum_seg_a_dt/abs(ar1[i]['age']-ar1[0]['age']),accum_seg_l/abs(ar1[i]['age']-ar1[0]['age']))
-        lst_accum_seg_a_dt.append(accum_seg_a_dt)
-        lst_mean_seg_a_dt.append(mean_seg_a_dt)
-        lst_mean_seg_l.append(mean_seg_l)
         divisor_l=PLATE_V_MAX_PAST/11.1195051975
         s_a,s_l=mean_seg_a_dt/POL_WAND_DIR_DIF_MAX,mean_seg_l/divisor_l
         d_shp=0. if i==0 else w_a*s_a+w_l*s_l
-        d_shp_l.append(format(d_shp,'.7f').rstrip('0') if d_shp<.1 else d_shp)
+        lst.append((i,ar1[i]['age'],ang,eta1,eta2,
+                    cumulative_sum4list(lst_seg_d_a)[-1],accum_seg_a_dt,
+                    mean_seg_a_dt,leh,cumulative_sum4list(lst_seg_d_l)[-1],
+                    mean_seg_l,format(d_shp,'.7f').rstrip('0') if d_shp<.1 else d_shp))
     if whole=='y': return d_shp,s_a,s_l
     else:
         print('Attn: For shape dif, weights Ws & Wl are {} and {} repectively'.format(w_a,w_l))
-        return lists2array((lst_no,lst_t,lst_seg_d_a,lst_eta1,lst_eta2,
-                            cumulative_sum4list(lst_seg_d_a),lst_accum_seg_a_dt,
-                            lst_mean_seg_a_dt,lst_seg_d_l,
-                            cumulative_sum4list(lst_seg_d_l),lst_mean_seg_l,d_shp_l),
-                           ['00_no','01_tstop','20_ang_seg_dif','22_course_seg1',
-                            '23_course_seg2','24_ang_seg_dif_accum',
-                            '25_ang_seg_dif_dt_accum','26_ang_seg_dif_dt_mean',
-                            '30_len_seg_dif','34_len_seg_dif_accum',
-                            '35_len_seg_dif_mean','41_shape_dif'],
-                           [np.uint8,'<f2','<f8','<f8','<f8','<f8','<f8','<f8',
-                            '<f8','<f8','<f8','<f8'])
+        return structured_array(lst,['00_no','01_tstop','20_ang_seg_dif',
+                                     '22_course_seg1','23_course_seg2',
+                                     '24_ang_seg_dif_accum',
+                                     '25_ang_seg_dif_dt_accum',
+                                     '26_ang_seg_dif_dt_mean',
+                                     '30_len_seg_dif','34_len_seg_dif_accum',
+                                     '35_len_seg_dif_mean','41_shape_dif'],
+                                [np.uint8,'<f2','<f8','<f8','<f8','<f8','<f8',
+                                 '<f8','<f8','<f8','<f8','<f8'])
 
 def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,dfn1='',dfn2=''):
     """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
@@ -657,30 +645,26 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     ar2=ar2[np.in1d(ar2[:]['age'],ar1[:]['age'])]
     tt1,tt2=0,0  #tt1/2 intermedium segment azimuth for trj 1/2
     n_row=min(len(ar1),len(ar2))
-    lst_pol_d_s,lst_seg_d_a,lst_seg_d_l=[],[],[]  #coeval segment spatial(s)/directional(a)/length(l) diff
-    lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
-    lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
+    lst=[]
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
     for i in range(0,n_row):
     #for i in [19,22]:
         #ind,sgd=0,0
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
-        lst_pol_d_s.append(sgd)
-        lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
         if i==0:
             eta1,eta2,ds1,ds2=np.nan,np.nan,np.nan,np.nan
-            lst_seg_d_a.append(np.nan)
-            lst_seg_d_l.append(np.nan)
-            lst_seg0a1.append(np.nan)  #no specific meaning for 1st pole
-            lst_seg0l1.append(np.nan)  #no specific meaning for 1st pole
+            seg_d_a=np.nan
+            seg_d_l=np.nan
+            seg0a1=np.nan  #no specific meaning for 1st pole
+            seg0l1=np.nan  #no specific meaning for 1st pole
         #store 2 angle changes, 1 ang dif, 2 lengths, 1 len dif of the 1st coeval segments in the row for the 2nd pole
         elif i==1:
             eta1,ds1=ang_len4_1st_seg(ar1[i-1]['dec'],ar1[i-1]['inc'],
                                       ar1[i]['dec'],ar1[i]['inc']) #ds1/2 segment length for trj 1/2
             eta2,ds2=ang_len4_1st_seg(ar2[i-1]['dec'],ar2[i-1]['inc'],
                                       ar2[i]['dec'],ar2[i]['inc'])
-            lst_seg0a1.append(np.nan) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
+            seg0a1=np.nan #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
             for _ in range(1000):
@@ -694,9 +678,9 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
-            lst_seg_d_a.append(np.nan)
-            lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+            seg0l1=0 if _u_>_l_ else 1  #--------------------END-i==1----------#
+            seg_d_a=np.nan
+            seg_d_l=format(leh,'.7f').rstrip('0') if leh<.1 else leh
             tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair
         else:
             eta1,ds1=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
@@ -732,29 +716,24 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
             au_=np.percentile(lst_d_ang_a_ras,97.5)
             al_=np.percentile(lst_d_ang_ras_rbs,2.5)
             #print(au_,al_)
-            lst_seg0a1.append(0 if au_>al_ else 1)
+            seg0a1=0 if au_>al_ else 1
             lu_=np.percentile(lst_d_leh_a_ras,97.5)
             ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if lu_>ll_ else 1)  #--------END-i>=2----------#
-            lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
-            lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+            seg0l1=0 if lu_>ll_ else 1  #--------------------END-i>=2----------#
+            seg_d_a=format(ang,'.7f').rstrip('0') if ang<.1 else ang
+            seg_d_l=format(leh,'.7f').rstrip('0') if leh<.1 else leh
             tt1,tt2=eta1,eta2
-        lst_no.append(i)
-        lst_t.append(ar1[i]['age'])  #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
-        lst_eta1.append(eta1)
-        lst_eta2.append(eta2)
-        lst_ds1.append(ds1)
-        lst_ds2.append(ds2)
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1],eta1,eta2,ds1,ds2))
-    return lists2array((lst_no,lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,
-                        lst_seg0a1,lst_eta1,lst_eta2,lst_seg_d_l,
-                        lst_seg0l1,lst_ds1,lst_ds2),
-                       ['00_no','01_tstop','10_spa_pol_dif','11_spa_pol_tes',
-                        '20_ang_seg_dif','21_ang_seg_tes','22_course_seg1',
-                        '23_course_seg2','30_len_seg_dif','31_len_seg_tes',
-                        '32_len_seg1','33_len_seg2'],
-                       ['<i2','<f2','<f8','<i1','<f8','<i1','<f8',
-                        '<f8','<f8','<i1','<f8','<f8'])
+        #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
+        lst.append((i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+    return structured_array(lst,['00_no','01_tstop','10_spa_pol_dif',
+                                 '11_spa_pol_tes','20_ang_seg_dif',
+                                 '21_ang_seg_tes','30_len_seg_dif',
+                                 '31_len_seg_tes','22_course_seg1',
+                                 '23_course_seg2',
+                                 '32_len_seg1','33_len_seg2'],
+                            ['<i2','<f2','<f8','<i1','<f8','<i1','<f8','<i1',
+                             '<f8','<f8','<f8','<f8'])
 
 def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     """Apply sig tests seperately on per-pair-of-coeval-poles' spacial dif
@@ -772,21 +751,17 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     ar2=ar2[np.in1d(ar2[:]['age'],ar1[:]['age'])]
     tt1,tt2=0,0  #tt1/2 intermedium segment azimuth for trj 1/2
     n_row=min(len(ar1),len(ar2))
-    lst_pol_d_s,lst_seg_d_a,lst_seg_d_l=[],[],[]  #coeval segment spatial(s)/directional(a)/length(l) diff
-    lst_pol0s1,lst_seg0a1,lst_seg0l1=[],[],[]  #1 distinguishable(different), 0 indistinguishable
-    lst_no,lst_t,lst_eta1,lst_eta2,lst_ds1,lst_ds2=[],[],[],[],[],[]
+    lst=[]
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
     for i in range(0,n_row):
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
-        lst_pol_d_s.append(sgd)
-        lst_pol0s1.append(ind)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
         if i==0:
             eta1,eta2,ds1,ds2=np.nan,np.nan,np.nan,np.nan
-            lst_seg_d_a.append(np.nan)
-            lst_seg_d_l.append(np.nan)
-            lst_seg0a1.append(np.nan)  #no specific meaning for 1st pole
-            lst_seg0l1.append(np.nan)  #no specific meaning for 1st pole
+            seg_d_a=np.nan  #coeval segment directional(a)/length(l) diff
+            seg_d_l=np.nan
+            seg0a1=np.nan  #no specific meaning for 1st pole
+            seg0l1=np.nan  #no specific meaning for 1st pole
         #store 2 angle changes, 1 ang dif, 2 lengths, 1 len dif of the 1st coeval segments in the row for the 2nd pole
         elif i==1:
             eta1,ds1=ang_len4_1st_seg(ar1[i-1]['dec'],ar1[i-1]['inc'],
@@ -802,7 +777,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             #                            ar1[i]['dec'],ar1[i]['inc'],
             #                            ar2[i-1]['dec'],ar2[i-1]['inc'],
             #                            ar2[i]['dec'],ar2[i]['inc'],filname1)
-            lst_seg0a1.append(0) #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
+            seg0a1=0 #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
             for _ in range(1000):
@@ -816,9 +791,9 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if _u_>_l_ else 1)  #--------END-i==1----------#
-            lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
-            lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+            seg0l1=0 if _u_>_l_ else 1  #--------------------END-i==1----------#
+            seg_d_a=format(ang,'.7f').rstrip('0') if ang<.1 else ang
+            seg_d_l=format(leh,'.7f').rstrip('0') if leh<.1 else leh
             tt1,tt2=eta1,eta2  #if eta1,eta2=0,0, this line is useless; kept here in case we want to measure ang dif betw the 1st coeval seg pair; if above used ang=ang4_2sep_direc_gdesics(?), then delete this line
         elif i==2:
             eta1,ds1=ang_len4_2nd_seg(ar1[i-2]['dec'],ar1[i-2]['inc'],
@@ -845,12 +820,12 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             au_=np.percentile(lst_d_ang_a_ras,97.5)
             al_=np.percentile(lst_d_ang_ras_rbs,2.5)
-            lst_seg0a1.append(0 if au_>al_ else 1)
+            seg0a1=0 if au_>al_ else 1  #1 distinguishable(different), 0 indistinguishable
             lu_=np.percentile(lst_d_leh_a_ras,97.5)
             ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if lu_>ll_ else 1)  #--------END-i==2----------#
-            lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
-            lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+            seg0l1=0 if lu_>ll_ else 1  #--------------------END-i==2----------#
+            seg_d_a=format(ang,'.7f').rstrip('0') if ang<.1 else ang
+            seg_d_l=format(leh,'.7f').rstrip('0') if leh<.1 else leh
             tt1,tt2=eta1,eta2
         else:
             if i==3 and ar1[2]['dec']==ar1[1]['dec'] and ar1[2]['inc']==ar1[1]['inc']:
@@ -909,28 +884,22 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             au_=np.percentile(lst_d_ang_a_ras,97.5)
             al_=np.percentile(lst_d_ang_ras_rbs,2.5)
-            lst_seg0a1.append(0 if au_>al_ else 1)
+            seg0a1=0 if au_>al_ else 1
             lu_=np.percentile(lst_d_leh_a_ras,97.5)
             ll_=np.percentile(lst_d_leh_ras_rbs,2.5)
-            lst_seg0l1.append(0 if lu_>ll_ else 1)  #--------END-i>=3----------#
-            lst_seg_d_a.append(format(ang,'.7f').rstrip('0') if ang<.1 else ang)
-            lst_seg_d_l.append(format(leh,'.7f').rstrip('0') if leh<.1 else leh)
+            seg0l1=0 if lu_>ll_ else 1  #--------------------END-i>=3----------#
+            seg_d_a=format(ang,'.7f').rstrip('0') if ang<.1 else ang
+            seg_d_l=format(leh,'.7f').rstrip('0') if leh<.1 else leh
             tt1,tt2=eta1,eta2
-        lst_no.append(i)
-        lst_t.append(ar1[i]['age'])  #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
-        lst_eta1.append(eta1)
-        lst_eta2.append(eta2)
-        lst_ds1.append(ds1)
-        lst_ds2.append(ds2)
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,lst_t[-1],sgd,ind,lst_seg_d_a[-1],lst_seg0a1[-1],lst_seg_d_l[-1],lst_seg0l1[-1],eta1,eta2,ds1,ds2))
-    return lists2array((lst_no,lst_t,lst_pol_d_s,lst_pol0s1,lst_seg_d_a,lst_seg0a1,
-                        lst_eta1,lst_eta2,lst_seg_d_l,lst_seg0l1,lst_ds1,lst_ds2),
-                       ['00_no','01_tstop','10_spa_pol_dif','11_spa_pol_tes',
-                        '20_ang_seg_dif','21_ang_seg_tes','22_course_seg1',
-                        '23_course_seg2','30_len_seg_dif','31_len_seg_tes',
-                        '32_len_seg1','33_len_seg2'],
-                       ['<i2','<f2','<f8','<i1','<f8','<i1','<f8','<f8','<f8',
-                        '<i1','<f8','<f8'])  #int8,int16,int32,int64 can be replaced by equivalent string 'i1','i2','i4',etc.
+        lst.append((i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+    return structured_array(lst,['00_no','01_tstop','10_spa_pol_dif',
+                                 '11_spa_pol_tes','20_ang_seg_dif',
+                                 '21_ang_seg_tes','30_len_seg_dif',
+                                 '31_len_seg_tes','22_course_seg1',
+                                 '23_course_seg2','32_len_seg1','33_len_seg2'],
+                            ['<i2','<f2','<f8','<i1','<f8','<i1','<f8','<i1',
+                             '<f8','<f8','<f8','<f8'])
 
 def run_sh(script,stdin=None):
     """Raises error on non-zero return code
@@ -1120,18 +1089,18 @@ class PMAGPY3():
 def main():
     """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/i/Desktop/git/digivisual/tmp/701FHS120predictPWP105.d')
+    modl_pp=ppf0('/home/i/Desktop/git/digivisual/tmp/101FHS120predictPWP105.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
     tbin=10		#18,10,2
     step=5	#9,5,1
-    modl='dm16'
+    modl='ay18'
     pid='101comb'
     wer='/home/i/tmp'
     for mav in [0]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in [4,5]:  #[0,1,2,3,4,5]:
+        for wgt in [5]:  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
                         pnh=1)
