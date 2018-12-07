@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 6Dec2018
+Modified on 7Dec2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.6.4
+@__version__	:	0.6.5
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -228,8 +228,13 @@ def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=2730,axis_unit=1):
     if axis_unit==0:	#variance=sigma square
         v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
     else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
-    pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=dros)
-    r_l=run_sh(ASSIGN_AZI4ROTATED_ELLIPS.format(lon,lat,list(pts[:,0]),list(pts[:,1]),azi))  #see more info from https://pyformat.info/
+    rlo,rla=[],[]
+    for _ in range(dros):
+        pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=26)
+        rmd=PMAGPY3().vector_mean(np.c_[pts,np.ones(26)])[0][:2]
+        rlo.append(rmd[0])
+        rla.append(rmd[1])
+    r_l=run_sh(ASSIGN_AZI4ROTATED_ELLIPS.format(lon,lat,rlo,rla,azi))  #see more info from https://pyformat.info/
     _r_=np.array([s.strip().split('\t') for s in r_l.decode().splitlines()])
     return list(map(float,_r_[:,0])),list(map(float,_r_[:,1]))
 
@@ -294,7 +299,7 @@ def common_dir_elliptical(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
                                        po1['dm'],po1['dp'])
-        bdi1=np.column_stack((lons1,lats1))
+        bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
@@ -308,7 +313,7 @@ def common_dir_elliptical(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
                                        po2['dm'],po2['dp'])
-        bdi2=np.column_stack((lons2,lats2))
+        bdi2=list(zip(lons2,lats2))
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)
     out=[]
@@ -335,7 +340,7 @@ def common_dir_elliptica_(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
                                        po1['dm'],po1['dp'])
-        bdi1=np.column_stack((lons1,lats1))
+        bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
@@ -349,7 +354,7 @@ def common_dir_elliptica_(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
                                        po2['dm'],po2['dp'])
-        bdi2=np.column_stack((lons2,lats2))
+        bdi2=list(zip(lons2,lats2))
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds2d(bdi1),get_bounds2d(bdi2)
     out=[]
