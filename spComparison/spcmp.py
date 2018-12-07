@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 27Sep2018
+Modified on 6Dec2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.6.3
+@__version__	:	0.6.4
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -30,7 +30,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
     Python3.6/7 + NumPy + (Numba, only if using a NVIDIA graphics card)
-    GMT5 + *NIX(-like) Shell                    (PmagPy installation not needed)
+    GMT5 + *NIX(-like) Shell (bc needed)        (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
     1. Tidy functions up into classes
@@ -222,14 +222,14 @@ def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     try: return float(rdloc[0]),float(rdloc[1])
     except ValueError as err: print("error",err,"on rdloc",rdloc)	#used for debugging
 
-def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=5000,axis_unit=1):
+def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=2730,axis_unit=1):
     """check function ellipsenrmdev_1gen, the difference here is generating a
     certain number of random points              Source: @__author__, Oct2016"""
     if axis_unit==0:	#variance=sigma square
         v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
     else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
     pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=dros)
-    r_l=run_sh(ASSIGN_AZI4ROTATED_ELLIPS.format(lon,lat,pts[:,0],pts[:,1],azi))  #see more info from https://pyformat.info/
+    r_l=run_sh(ASSIGN_AZI4ROTATED_ELLIPS.format(lon,lat,list(pts[:,0]),list(pts[:,1]),azi))  #see more info from https://pyformat.info/
     _r_=np.array([s.strip().split('\t') for s in r_l.decode().splitlines()])
     return list(map(float,_r_[:,0])),list(map(float,_r_[:,1]))
 
