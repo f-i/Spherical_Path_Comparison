@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 7Dec2018
+Modified on 9Dec2018
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.6.5
+@__version__	:	0.6.8
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -30,7 +30,7 @@ this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
     Python3.6/7 + NumPy + (Numba, only if using a NVIDIA graphics card)
-    GMT5 + *NIX(-like) Shell (bc needed)        (PmagPy installation not needed)
+    GMT5 + *NIX(-like) Shell + bc               (PmagPy installation not needed)
 --------------------------------------------------------------------------------
 TODO:
     1. Tidy functions up into classes
@@ -181,7 +181,7 @@ def ppf0(fname,pnh=0):
     return vgp
 
 def ppf1(fname):
-    """parse raw vgp file, from ASCII data to numpy array
+    """parse raw vgp file without weights, from ASCII data to numpy array
     Source: @__author__, Feb-Sep2018"""
     pdl="\t"
     puc=(0,1,2,4,5)
@@ -189,6 +189,14 @@ def ppf1(fname):
     vgp=np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,names=True)
     vgp['ED95']=1  #col name 'ED95' is used to store weights
     return vgp
+
+def ppf2(fname):
+    """parse raw vgp file with weights, from ASCII data to numpy array
+    Source: @__author__, Dec2018"""
+    pdl="\t"
+    puc=(0,1,11,4,5)
+    pdt="f8,f8,f8,f8,f8"
+    return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,names=True)
 
 def cumulative_sum4list(lst):
     """generate a list that stores the cumulative sum of integers, e.g., if my
@@ -222,15 +230,18 @@ def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     try: return float(rdloc[0]),float(rdloc[1])
     except ValueError as err: print("error",err,"on rdloc",rdloc)	#used for debugging
 
-def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,dros=2730,axis_unit=1):
+def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,siz=1000,axis_unit=1):
     """check function ellipsenrmdev_1gen, the difference here is generating a
     certain number of random points              Source: @__author__, Oct2016"""
     if axis_unit==0:	#variance=sigma square
         v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
     else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
     rlo,rla=[],[]
-    for _ in range(dros):
-        pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=26)
+    for _ in range(siz):
+        pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=26)  #be careful when size is larger than 2738, https://stackoverflow.com/questions/52587499/possible-random-multivariate-normal-bug-when-size-is-too-large
+        #if siz>500:
+        #    np.savetxt("/tmp/"+str(siz)+".txt",pts,fmt='%.9g',delimiter=',')
+        #    pts=np.genfromtxt("/tmp/"+str(siz)+".txt",delimiter=',')
         rmd=PMAGPY3().vector_mean(np.c_[pts,np.ones(26)])[0][:2]
         rlo.append(rmd[0])
         rla.append(rmd[1])
@@ -277,11 +288,11 @@ def get_fsh(dire):
         _i_.append(irot)
     return np.column_stack((_d_,_i_))
 
-def common_dir_elliptical(po1,po2,boots=5000,fn1='file1',fn2='file2'):
+def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     """po1/2 (pole1/2 in Path1/2): numpy void; da1/2: a nested list of
     directional data [dec,inc] (a di_block). Note that boots(teps)=1000 could be
     insufficient for when 1<n<=25, at least 5000 is needed to ensure result >95%
-    significantly robust (confirmed by tests). Meanwhile, however, it means much
+    significantly robust (NEEDs RE-tests). Meanwhile, however, it means much
     more computing time. See further discussion here:
     https://stats.stackexchange.com/questions/86040/rule-of-thumb-for-number-of-bootstrap-samples
     For n>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
@@ -313,17 +324,19 @@ def common_dir_elliptical(po1,po2,boots=5000,fn1='file1',fn2='file2'):
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
                                        po2['dm'],po2['dp'])
+        #print(len(lons2),len(lats2))  #for debugging; should =siz in elips_nrmdev_gen_n function
         bdi2=list(zip(lons2,lats2))
+        #np.savetxt("/tmp/ssd.txt",bdi2,delimiter='	',fmt='%.9g')
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)
     out=[]
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
-    _o_=1 if sum(out)>=1 else 0  #1 distinguishable, 0 indistinguishable
+    _o_=1 if sum(out)>=1 else 0  #1 distinguishable/separate, 0 indistinguishable/overlap
     _a_=PMAGPY3().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
     return _o_,_a_[0]
 
-def common_dir_elliptica_(po1,po2,boots=5000,fn1='file1',fn2='file2'):
+def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     """derived from the function 'common_dir_elliptical'; the difference here is
     this function is using 'get_bounds2d' func to more accurately process the
     bounds of random pole vectors                Source: @__author__, Apr2018"""
@@ -652,8 +665,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     n_row=min(len(ar1),len(ar2))
     lst=[]
     print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
-    for i in range(0,n_row):
-    #for i in [19,22]:
+    for i in range(0,n_row):  # [19,22]
         #ind,sgd=0,0
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -672,7 +684,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
             seg0a1=np.nan #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
-            for _ in range(1000):
+            for _ in range(1000):  #1000
                 a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
                 a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
                 b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
@@ -697,7 +709,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)  #------------------------i>=2-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
-            for _ in range(1000):
+            for _ in range(1000):  #1000
                 a0x,a0y=common_dir_ellip1gen(ar1[i-2],folder=filname1)
                 a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
                 a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)
@@ -711,13 +723,13 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
                 lst_d_leh_a_ras.append(abs(ds1r-ds1))
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             #####################SAVE#TrajI#VS#TrajI#########START########
-            i_i=open('/tmp/{0}i_i.d'.format(i),'w')
-            for j in lst_d_ang_a_ras: i_i.write("%s\n" % j)
-            i_i.close()  ########SAVE#TrajI#VS#TrajI##########END#########
+            #i_i=open('/tmp/{0}i_i.d'.format(i),'w')
+            #for j in lst_d_ang_a_ras: i_i.write("%s\n" % j)
+            #i_i.close()  ########SAVE#TrajI#VS#TrajI##########END#########
             #####################SAVE#TrajI#VS#TrajII########START########
-            i_ii=open('/tmp/{0}i_ii.d'.format(i),'w')
-            for j in lst_d_ang_ras_rbs: i_ii.write("%s\n" % j)
-            i_ii.close()  #######SAVE#TrajI#VS#TrajII#########END#########
+            #i_ii=open('/tmp/{0}i_ii.d'.format(i),'w')
+            #for j in lst_d_ang_ras_rbs: i_ii.write("%s\n" % j)
+            #i_ii.close()  #######SAVE#TrajI#VS#TrajII#########END#########
             au_=np.percentile(lst_d_ang_a_ras,97.5)
             al_=np.percentile(lst_d_ang_ras_rbs,2.5)
             #print(au_,al_)
@@ -730,14 +742,15 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
             tt1,tt2=eta1,eta2
         #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
         lst.append((i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,
+                                                                                    seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
     return structured_array(lst,['00_no','01_tstop','10_spa_pol_dif',
                                  '11_spa_pol_tes','20_ang_seg_dif',
                                  '21_ang_seg_tes','30_len_seg_dif',
                                  '31_len_seg_tes','22_course_seg1',
                                  '23_course_seg2',
                                  '32_len_seg1','33_len_seg2'],
-                            ['<i2','<f2','<f8','<i1','<f8','<i1','<f8','<i1',
+                            ['<i2','<f2','<f8','<i1','<f8','<f4','<f8','<f4',
                              '<f8','<f8','<f8','<f8'])
 
 def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
@@ -903,7 +916,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                                  '21_ang_seg_tes','30_len_seg_dif',
                                  '31_len_seg_tes','22_course_seg1',
                                  '23_course_seg2','32_len_seg1','33_len_seg2'],
-                            ['<i2','<f2','<f8','<i1','<f8','<i1','<f8','<i1',
+                            ['<i2','<f2','<f8','<i1','<f8','<f4','<f8','<f4',
                              '<f8','<f8','<f8','<f8'])
 
 def run_sh(script,stdin=None):
@@ -1104,33 +1117,34 @@ def main():
     modl='ay18'
     pid='101comb'
     wer='/home/i/tmp'
-    for mav in [0]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in [5]:  #[0,1,2,3,4,5]:
+    for mav in [6]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+        for wgt in [0,1,2,3,4,5]:  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
                         pnh=1)
-            makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,
-                                                           mav,wgt),
-                     exist_ok=True)
             for i in pmag_pp:
-                print(i['age'])
+                #print(i['age'])
                 if i['n']>25:
+                    makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,
+                                                                   step,mav,wgt),
+                             exist_ok=True)
                     raw_dir1='{0}/{1}/{2}/{1}_{2}_{3}_{4}_{5}_{6}/{7}_{8}.d'.format(wer,modl,pid,tbin,step,mav,wgt,
                                                                                     round(i['age']+step,1),round(i['age']-step,1))
                     raw_dir2='{0}/{1}/{2}/{1}_{2}_{3}_{4}_{5}_{6}/{7}_{8}_WT.d'.format(wer,modl,pid,tbin,step,mav,wgt,
                                                                                        round(i['age']+step,1),round(i['age']-step,1))
-                    raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf1(raw_dir2)
-                    print(raw_pls)
+                    raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf2(raw_dir2)
+                    #print(raw_pls)
                     np.savetxt("/tmp/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+"/"+str(i['age'])+".txt",
-                               raw_pls,delimiter='	')
+                               raw_pls,delimiter='	',fmt='%.9g')
             print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
             makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),
                      exist_ok=True)
-            print(pmag_pp)
-            print(modl_pp)
+            #print(pmag_pp)
+            #print(modl_pp)
             simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1='{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt))
             np.savetxt(wer+"/"+modl+"_"+pid+"/"+str(tbin)+"_"+str(step)+"_simil/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+".d",
-                       simil,delimiter='	',fmt='%s')
+                       simil,delimiter='	',fmt='%.9g',comments='',
+                       header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
             print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
 
 def test():
