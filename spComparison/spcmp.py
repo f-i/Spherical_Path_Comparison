@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 9Dec2018
+Modified on 24Jan2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.6.8
+@__version__	:	0.6.9
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -1105,9 +1105,10 @@ class PMAGPY3():
         return dire,_r_
 
 def main():
-    """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
+    """Run the algorithm on real-world examples of pmag paths (at reduced data
+    density) vs. modeled one"""
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/i/Desktop/git/digivisual/tmp/101FHS120predictPWP105.d')
+    modl_pp=ppf0('/home/g/Desktop/git/digivisual/tmp/101FHS120predictPWP105.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
@@ -1116,7 +1117,51 @@ def main():
     step=5	#9,5,1
     modl='ay18'
     pid='101comb'
-    wer='/home/i/tmp'
+    wer='/tmp'
+    for fod in range(4,10):
+        for mav in [0]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+            for wgt in [0]:  #[0,1,2,3,4,5]:
+                pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
+                                                                                     step,mav,wgt),
+                            pnh=1)
+                for i in pmag_pp:
+                    #print(i['age'])
+                    if i['n']>25:
+                        makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,
+                                                                       step,mav,wgt),
+                                 exist_ok=True)
+                        raw_dir1='{0}/{1:03d}/{2}/{3}/{2}_{3}_{4}_{5}_{6}_{7}/{8}_{9}.d'.format(wer,fod,modl,pid,tbin,step,mav,wgt,
+                                                                                                round(i['age']+step,1),round(i['age']-step,1))
+                        raw_dir2='{0}/{1:03d}/{2}/{3}/{2}_{3}_{4}_{5}_{6}_{7}/{8}_{9}_WT.d'.format(wer,fod,modl,pid,tbin,step,mav,wgt,
+                                                                                                   round(i['age']+step,1),round(i['age']-step,1))
+                        raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf2(raw_dir2)
+                        #print(raw_pls)
+                        np.savetxt("/tmp/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+"/"+str(i['age'])+".txt",
+                                   raw_pls,delimiter='	',fmt='%.9g')
+                print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
+                makedirs('{0}/{1:03d}/{2}_{3}/{4}_{5}_simil'.format(wer,fod,modl,pid,tbin,step),
+                         exist_ok=True)
+                #print(pmag_pp)
+                #print(modl_pp)
+                simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1='{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt))
+                np.savetxt(wer+"/{:03d}/".format(fod)+modl+"_"+pid+"/"+str(tbin)+"_"+str(step)+"_simil/"+modl+"_"+pid+"_"+str(tbin)+"_"+str(step)+"_"+str(mav)+"_"+str(wgt)+".d",
+                           simil,delimiter='	',fmt='%.9g',comments='',
+                           header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
+                print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
+
+def main1():
+    """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
+    #-------------Prepare Model Predicted APWP----------------------------------
+    modl_pp=ppf0('/home/g/Desktop/git/digivisual/tmp/101FHS120predictPWP105.d')
+    modl_pp[:]['dm']/=111.195051975
+    modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
+
+    #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
+    tbin=10		#18,10,2
+    step=5	#9,5,1
+    modl='ay18'
+    pid='101comb'
+    wer='/home/g/tmp'
     for mav in [6]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
         for wgt in [0,1,2,3,4,5]:  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
