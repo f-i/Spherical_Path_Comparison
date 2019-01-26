@@ -1,21 +1,24 @@
 # Spherical_Path_Comparison
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
 measuring similarity of spherical paths, especially the paleomagnetic apparent
-polar wander paths (APWPs) of tectonic plates. It is powered by GMT and PmagPy.
+polar wander paths (APWPs) of tectonic plates. It is powered by GMT
+(http://gmt.soest.hawaii.edu/) and PmagPy (https://github.com/PmagPy/PmagPy).
 Read on for more details here: https://github.com/f-i/APWP_similarity
 
 # About the Functions
-Because of complexity of the related algorithms about spherical surface geometry,
-old-version directional change for each segment (seg) was actually the dif
-between its previous seg and itself (if we think about it, this solution should
-be able to give close results to dif between the 1st seg and itself). The
-corresponding function is "spa_angpre_len_dif". This solution is also relatively
-faster. I've already figured out a solution for calculating dif between each
-segment and always the 1st seg, which is the function "spa_ang1st_len_dif".
-However, unfortunately its execution time is much more (about 5 times) than the
-previous solution. Working on the code efficiency but not very positive about
-the improvement. Maybe we need to balance complexity and time. I'm also
-considering to write all codes in C language for the following chapters.
+Because of the complexity of the related algorithms about spherical surface
+geometry, old-version directional change for each segment (seg) was actually the
+difference between each seg and always the 1st seg. The corresponding function
+is "spa_ang1st_len_dif". However, later we realized that the definition of the
+difference between each seg and the 1st seg is far more complicated than
+expected, especially for those seg far from the 1st seg. Another disadvantage
+of this function is its long calculating time, which is about 5 times of the
+time the second solution, that will be introduced as follows, consumes. For the
+second solution, which is also described in detail in the section 2.4.1 of the
+paper stored in the repository: https://github.com/f-i/APWP_similarity. The
+orientation change is the difference between its previous seg and itself. The
+corresponding function is "spa_angpre_len_dif". Balancing complexity and
+calculating time is always a to-do work.
 * Complexity 1: Angle between two DIRECTIONAL geodesics (i.e. segments which
   are with DIRECTIONs in the order of poles' ages, but not necessarily
   successive displacement ones). Angle between two geodesics (no constraints
