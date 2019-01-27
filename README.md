@@ -19,17 +19,17 @@ paper stored in the repository: https://github.com/f-i/APWP_similarity. The
 orientation change is the difference between its previous seg and itself. The
 corresponding function is "spa_angpre_len_dif". Balancing complexity and
 calculating time is always a to-do work.
-* Complexity 1: Angle between two DIRECTIONAL geodesics (i.e. segments which
-  are with DIRECTIONs in the order of poles' ages, but not necessarily
-  successive displacement ones). Angle between two geodesics (no constraints
-  on their directions) could be 2 solutions at both intersections of the
-  great circles that the two geodesics are on. However, if the two geodesics
-  have directions, the correct angle between them would be just one of the
-  above 2 solutions.
 
 # Related Algorithms
 
 ## About Segment Angle Difference
+
+* Angle between two DIRECTIONAL geodesics (i.e. segments which are with
+  DIRECTIONs in the order of poles' ages, but not necessarily successive
+  displacement ones). Angle between two geodesics (no constraints on their
+  directions) could be 2 solutions at both intersections of the great circles
+  that the two geodesics are on. However, if the two geodesics have directions,
+  the correct angle between them would be just one of the above 2 solutions.
 
 ![](fig1directionalGeodesics.png?raw=true)
 Figure 1: Directional change calculations, for two successive displacement
