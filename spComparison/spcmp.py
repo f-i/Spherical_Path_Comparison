@@ -940,6 +940,34 @@ class ScriptException(Exception):
         self.returncode,self.stdout,self.stderr=returncode,stdout,stderr
         Exception.__init__(self,returncode,stdout,stderr,script)
 
+def ppf3(fname,pnh=1):
+    """parse prints from spa_ang1st_len_dif, from ASCII data to numpy array"""
+    pdl="\t"
+    puc=(0,1,2,3,4,5,6,7)
+    pdt=[('00_no','<i2'),('01_tstop','<i2'),('10_spa_pol_dif','<f8'),
+         ('11_spa_pol_tes','<i1'),('20_ang_seg_dif','<f8'),
+         ('21_ang_seg_tes','<i1'),('30_len_seg_dif','<f8'),
+         ('31_len_seg_tes','<i1')]
+    return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
+
+def calc(pair,n_o,t_0=0,t_1=530,oldform=1):
+    """measurements multiply test results 0 or 1; t_0 is supposed to be 0,
+    becuase for t_0 != 0 d_a should be based on a new beginning seg"""
+    tmp=pair[(pair[:]['01_tstop']<=t_1) & (pair[:]['01_tstop']>=t_0)]
+    d_s=(tmp[:]['10_spa_pol_dif']*tmp[:]['11_spa_pol_tes']).sum()/(50*tmp[:]['10_spa_pol_dif'].size) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/tmp[:]['10_spa_pol_dif'].size
+    d_a=(tmp[2:]['20_ang_seg_dif']*tmp[2:]['21_ang_seg_tes']).sum()/(180*(tmp[:]['10_spa_pol_dif'].size-2))
+    #30cm/yr is about 2.697961777 degree/myr
+    d_l=(tmp[1:]['30_len_seg_dif']*tmp[1:]['31_len_seg_tes']).sum()/(2.697961777*(tmp[:]['01_tstop'].max()-tmp[:]['01_tstop'].min()))
+    print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(d_s,d_a,d_l,n_o,t_0,t_1))
+
+def calc_nt(pair,n_o,t_0=0,t_1=530,oldform=1):
+    """measurements without test influencing"""
+    tmp=pair[(pair[:]['01_tstop']<=t_1) & (pair[:]['01_tstop']>=t_0)]
+    d_s=(tmp[:]['10_spa_pol_dif']).sum()/(50*tmp[:]['10_spa_pol_dif'].size) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/tmp[:]['10_spa_pol_dif'].size
+    d_a=tmp[2:]['20_ang_seg_dif'].sum()/(180*(tmp[:]['10_spa_pol_dif'].size-2))
+    #30cm/yr is about 2.697961777 degree/myr
+    d_l=(tmp[1:]['30_len_seg_dif']).sum()/(2.697961777*(tmp[:]['01_tstop'].max()-tmp[:]['01_tstop'].min()))
+    print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(d_s,d_a,d_l,n_o,t_0,t_1))
 
 
 class PMAGPY3():
