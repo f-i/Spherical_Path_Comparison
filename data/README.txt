@@ -3,7 +3,8 @@ The following data
     Laurentia_RM_NoErr.txt
     Laurentia_F6_RM.txt
     Baltica_StableEurope_RM.txt
-    Baltica_StableEurope_F6_RM.txt
+    Baltica_StableEurope_F6_RM.txt: reproduced from raw VGPs; uninterpolated
+    Baltica_StableEurope_F6_RMi.txt: reproduced from raw VGPs; interpolated same as Table 4 "RM f=0.6" columns of Torsvik et al. 2012 Earth Sci Rev
     rot_version
     |----Laurentia_RM_1deg.txt
     |----Laurentia_RM_15deg.txt
@@ -12,8 +13,8 @@ The following data
     |----Laurentia_RM_45deg.txt
     |----Laurentia_RM_NoErr_45deg.txt
     |----Laurentia_RM_GMAP2015BALcoord.txt
-    |----Laurentia_F6_RM_GMAP2015BALcoord.txt
-    |----Laurentia_F6_RMi_GMAP2015BALcoord.txt
+    |----Laurentia_F6_RM_GMAP2015BALcoord.txt: uninterpolated
+    |----Laurentia_F6_RMi_GMAP2015BALcoord.txt: interpolated
 in this folder contain the following 10 columns:
 dec	inc	age	dm	dp	dm_azi	k	n	possib_loest_age	possib_hiest_age
 
@@ -36,6 +37,7 @@ The following subfolders
     Laurentia_F6_RM
     Baltica_StableEurope_RM
     Baltica_StableEurope_F6_RM
+    Baltica_StableEurope_F6_RMi
     rot_version
     |----Laurentia_RM_1deg
     |----Laurentia_RM_15deg
@@ -45,6 +47,7 @@ The following subfolders
     |----Laurentia_RM_NoErr_45deg
     |----Laurentia_RM_GMAP2015BALcoord
     |----Laurentia_F6_RM_GMAP2015BALcoord
+    |----Laurentia_F6_RMi_GMAP2015BALcoord
 in this main folder correspond to the above listed text files, and contain the
 original VGPs for the mean poles with N>25.
 
