@@ -52,8 +52,8 @@ in this main folder correspond to the above listed text files, and contain the
 original VGPs for the mean poles with N>25.
 
 
-All the data in the "0.result_tables" subfolder contain the following 8 columns:
-00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes
+All the data in the "0.result_tables" subfolder contain the following 12 columns:
+00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	22_course_seg1	22_course_seg1	22_course_seg1
 
 What they are:
 	00_no:			index / order number
@@ -67,3 +67,7 @@ What they are:
 	30_len_seg_dif:	length difference of each coeval segment pair
 	31_len_seg_tes:	1 or 0, i.e., a significant or no significant length difference,
 					based on random sampling from pole uncertainties
+	22_course_seg1:	trajectory I's each segment's orientational change
+	23_course_seg2:	trajectory II's each contemporary segment's orientational change
+	32_len_seg1:	trajectory I's each segment's length
+	33_len_seg2:	trajectory II's each contemporary segment's length
