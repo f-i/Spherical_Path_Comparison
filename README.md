@@ -7,10 +7,10 @@ Read on for more details here: https://github.com/f-i/APWP_similarity
 
 # About the Functions
 Because of the complexity of the related algorithms about spherical surface
-geometry, old-version directional change for each segment (seg) was actually the
-difference between each seg and always the 1st seg. The corresponding function
-is "spa_ang1st_len_dif". However, later we realized that the definition of the
-difference between each seg and the 1st seg is far more complicated than
+geometry, the old-version directional change for each segment (seg) was actually
+the difference between each seg and always the 1st seg. The corresponding
+function is "spa_ang1st_len_dif". However, later we realized that the definition
+of the difference between each seg and the 1st seg is far more complicated than
 expected, especially for those seg far from the 1st seg. Another disadvantage
 of this function is its long calculating time, which is about 5 times of the
 time the second solution, that will be introduced as follows, consumes. For the
@@ -22,7 +22,7 @@ calculating time is always a to-do work.
 
 # Related Algorithms
 
-## About Segment Angle Difference
+## The Idea Behind the Function "spa_ang1st_len_dif" About Segment Angle Difference
 
 * Angle between two DIRECTIONAL geodesics (i.e. segments which are with
   DIRECTIONs in the order of poles' ages, but not necessarily successive
