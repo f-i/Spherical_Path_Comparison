@@ -25,7 +25,6 @@ The following data
     |----Laurentia_F6_RM_stp12_GMAP2015BALcoord.txt
 in this folder contain the following 10 columns:
 dec	inc	age	dm	dp	dm_azi	k	n	possib_loest_age	possib_hiest_age
-
 What they are:
 	dec:				longitude of mean pole (if n>1), or VGP (if n=1), or interoperated pole (if n=0)
 	inc:				latitude of mean pole (if n>1), or VGP (if n=1), or interoperated pole (if n=0)
@@ -64,9 +63,9 @@ in this main folder correspond to the above listed text files, and contain the
 original VGPs for the mean poles with N>25.
 
 
-All the data in the "0.result_tables" subfolder contain the following 12 columns:
+All the difference-result data in the "0.result_tables" subfolder contain the
+following 12 columns:
 00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	22_course_seg1	22_course_seg1	22_course_seg1
-
 What they are:
 	00_no:			index / order number
 	01_tstop:		pole age
