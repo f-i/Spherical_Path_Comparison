@@ -31,7 +31,7 @@ orientation change is the difference between its previous seg and itself.
 [//]: # (  that the two geodesics are on. However, if the two geodesics have directions,)
 [//]: # (  the correct angle between them would be just one of the above 2 solutions.)
 
-[//]: # (![](fig1directionalGeodesics.png?raw=true))
+<!--- ![](fig1directionalGeodesics.png?raw=true) -->
 [//]: # (Figure 1: Directional change calculations, for two successive displacement)
 [//]: # (segments i.e. directional geodesics, that describe pole wandering like)
 [//]: # (Seg<sub>1</sub><sup>'</sup> & Seg<sub>2</sub><sup>'</sup> or)
