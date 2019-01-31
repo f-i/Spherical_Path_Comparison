@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 24Jan2019
+Modified on 30Jan2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.6.9
+@__version__	:	0.7.0
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -46,17 +46,18 @@ PLATE_V_MAX_PAST=30  #according to Swanson-Hysell etal.2009, Kulakov etal.2014; 
 #divisor for mean length dif=PLATE_V_MAX_PAST/11.1195051975  #i.e. about 2.7 degree/myr, magnitude of velocity
 POL_WAND_DIR_DIF_MAX=180
 
-#Source: @__author__, Oct2015
+#Returns azimuth of geodesic ({0},{1}) to ({2},{3}) Source: @__author__, Oct2015
 AZI="""
 gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'
 """
 
-#Source: @__author__, Jan2016
+#Returns absolute value of (({0}-{1}) % 360)        Source: @__author__, Jan2016
 SMALLER_ANGLE_REMAINDER="""
 gmt math -Q {0} {1} SUB 360 FMOD ABS =
 """
 
-#Source: @__author__, Oct2016
+#Returns one sample within error ellipse of pole (location ({0},{1}), azimuth of
+#major axis {4})                                    Source: @__author__, Oct2016
 ASSIGN_AZI4ROTATED_ELLIP="""
 gmt set PROJ_ELLIPSOID Sphere
 angle=`gmt vector -S0/0 -TD -fg <<< "{0} {1}"`
@@ -76,7 +77,8 @@ dir_ex=`gmt math -Q $az1 {4} SUB =`
 echo "{2} {3}" |gmt backtracker -E$p -o0,1 |gmt backtracker -E{0}/{1}/$dir_ex -o0,1
 """
 
-#Source: @__author__, Oct2016
+#Returns multiple samples within error ellipse of pole (location ({0},{1}),
+#azimuth of major axis {4})                         Source: @__author__, Oct2016
 ASSIGN_AZI4ROTATED_ELLIPS="""
 gmt set PROJ_ELLIPSOID Sphere
 agl=`gmt vector -S0/0 -TD -fg <<< "{0} {1}"`
@@ -290,12 +292,10 @@ def get_fsh(dire):
 
 def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     """po1/2 (pole1/2 in Path1/2): numpy void; da1/2: a nested list of
-    directional data [dec,inc] (a di_block). Note that boots(teps)=1000 could be
-    insufficient for when 1<n<=25, at least 5000 is needed to ensure result >95%
-    significantly robust (NEEDs RE-tests). Meanwhile, however, it means much
-    more computing time. See further discussion here:
+    directional data [dec,inc] (a di_block). boots=1000 should be sufficient;
+    Large number for boots means more computing time. See related discussion here:
     https://stats.stackexchange.com/questions/86040/rule-of-thumb-for-number-of-bootstrap-samples
-    For n>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
+    For N>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
     Source: @__author__ and Chris Rowan, 2016-Feb2018"""
     if po1['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age']))) as _f_:
@@ -652,6 +652,11 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     (distance) and per-pair-of-coeval-segments' angular and length difs;
     Here each segment's directional change is always relative to its previous
     segment (in fact eventually relative to the 1st segment in 2D space)
+    trj1 or trj2: a ASCII text file, or a numpy array;
+    fmt1: trj1 data format; fmt2: trj2 data format;
+    pnh1 or pnh2: header line number, 1 means first line, 0 means no header line;
+    dfn1/2: trj1/2 data file name, for creating a folder under the same number
+            containing raw VGP data when N>25 during calculation
     Source: @__author__, Jan2018"""
     if fmt1=='textfile': filname1=re.split('/|\.',trj1)[-2]
     if fmt2=='textfile': filname2=re.split('/|\.',trj2)[-2]
@@ -941,7 +946,8 @@ class ScriptException(Exception):
         Exception.__init__(self,returncode,stdout,stderr,script)
 
 def ppf3(fname,pnh=1):
-    """parse prints from spa_ang1st_len_dif, from ASCII data to numpy array"""
+    """Parses prints from function 'spa_ang1st/pre_len_dif' (ASCII data);
+    Returns a numpy array                        Source: @__author__, Jun2018"""
     pdl="\t"
     puc=(0,1,2,3,4,5,6,7)
     pdt=[('00_no','<i2'),('01_tstop','<i2'),('10_spa_pol_dif','<f8'),
@@ -951,8 +957,13 @@ def ppf3(fname,pnh=1):
     return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
 
 def calc(pair,n_o,t_0=0,t_1=530,oldform=1):
-    """measurements multiply test results 0 or 1; t_0 is supposed to be 0,
-    becuase for t_0 != 0 d_a should be based on a new beginning seg"""
+    """Prints difference measurements multiply test result 0 or 1; For t_0 != 0,
+    d_a should be based on a new beginning seg
+    pair: a numpy array; n_o: user-input index; t_0: beginning point's age;
+    t_1: end point's age; if oldform is 1, d_s is defined as dsicribed in the
+    paper, else defined as fraction of n coeval pole pairs that are
+    statistically distinguishable from each other
+    Source: @__author__, Jun2018"""
     tmp=pair[(pair[:]['01_tstop']<=t_1) & (pair[:]['01_tstop']>=t_0)]
     d_s=(tmp[:]['10_spa_pol_dif']*tmp[:]['11_spa_pol_tes']).sum()/(50*tmp[:]['10_spa_pol_dif'].size) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/tmp[:]['10_spa_pol_dif'].size
     d_a=(tmp[2:]['20_ang_seg_dif']*tmp[2:]['21_ang_seg_tes']).sum()/(180*(tmp[:]['10_spa_pol_dif'].size-2))
@@ -961,11 +972,11 @@ def calc(pair,n_o,t_0=0,t_1=530,oldform=1):
     print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(d_s,d_a,d_l,n_o,t_0,t_1))
 
 def calc_nt(pair,n_o,t_0=0,t_1=530,oldform=1):
-    """measurements without test influencing"""
+    """Derived from the function 'calc'; Prints difference measurements without
+    test influencing                             Source: @__author__, Jun2018"""
     tmp=pair[(pair[:]['01_tstop']<=t_1) & (pair[:]['01_tstop']>=t_0)]
     d_s=(tmp[:]['10_spa_pol_dif']).sum()/(50*tmp[:]['10_spa_pol_dif'].size) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/tmp[:]['10_spa_pol_dif'].size
     d_a=tmp[2:]['20_ang_seg_dif'].sum()/(180*(tmp[:]['10_spa_pol_dif'].size-2))
-    #30cm/yr is about 2.697961777 degree/myr
     d_l=(tmp[1:]['30_len_seg_dif']).sum()/(2.697961777*(tmp[:]['01_tstop'].max()-tmp[:]['01_tstop'].min()))
     print('{0}\t{1}\t{2}\t{3}\t{4}\t{5}'.format(d_s,d_a,d_l,n_o,t_0,t_1))
 
@@ -1146,7 +1157,7 @@ def main():
     modl='ay18'
     pid='101comb'
     wer='/tmp'
-    for fod in range(4,10):
+    for fod in range(69,101):
         for mav in [0]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
             for wgt in [0]:  #[0,1,2,3,4,5]:
                 pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
