@@ -5,6 +5,14 @@ polar wander paths (APWPs) of tectonic plates. It is powered by GMT
 (http://gmt.soest.hawaii.edu/) and PmagPy (https://github.com/PmagPy/PmagPy).
 Read on for more details here: https://github.com/f-i/APWP_similarity
 
+## How to Use
+Please use demo.ipynb (openable by Jupyter Notebook https://jupyter.org/) to
+see a few examples of measuring APWP similarity using the spComparison package
+(stored in the "spComparison" folder).
+
+Please refer to the README.txt file in the "data" folder for more details about
+the data.
+
 ## About the Two Ideas About Segment Angle Difference
 Compared with the algorithm about segment (seg) angle difference in the function
 "spa_angpre_len_dif", the old-version orientation change for each seg in the
