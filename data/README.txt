@@ -1,6 +1,8 @@
 The following data
     Laurentia_RM.txt
+    Laurentia_RM_NoIntp.txt: Laurentia_RM.txt without interpolated poles
     Laurentia_RM_NoErr.txt
+    Laurentia_RM_NoErr_NoIntp.txt: Laurentia_RM_NoErr.txt without interpolated poles
     Laurentia_F6_RM.txt
     Baltica_StableEurope_RM.txt
     Baltica_StableEurope_F6_RM.txt: reproduced from raw VGPs; uninterpolated
@@ -11,11 +13,15 @@ The following data
     Baltica_StableEurope_F6_RM_stp12.txt
     rot_version
     |----Laurentia_RM_1deg.txt
+    |----Laurentia_RM_1deg_NoIntp.txt: Laurentia_RM_1deg.txt without interpolated poles
     |----Laurentia_RM_15deg.txt
+    |----Laurentia_RM_15deg_NoIntp.txt: Laurentia_RM_15deg.txt without interpolated poles
     |----Laurentia_RM_po_15deg.txt
     |----Laurentia_RM_p_15deg.txt
     |----Laurentia_RM_45deg.txt
+    |----Laurentia_RM_45deg_NoIntp.txt: Laurentia_RM_45deg.txt without interpolated poles
     |----Laurentia_RM_NoErr_45deg.txt
+    |----Laurentia_RM_NoErr_45deg_NoIntp.txt: Laurentia_RM_NoErr_45deg.txt without interpolated poles
     |----Laurentia_RM_GMAP2015BALcoord.txt
     |----Laurentia_F6_RM_GMAP2015BALcoord.txt: uninterpolated
     |----Laurentia_F6_RMi_GMAP2015BALcoord.txt: interpolated
@@ -41,6 +47,7 @@ What they are:
 The following subfolders
     Laurentia_RM
     Laurentia_RM_NoErr
+    Laurentia_RM_NoErr_NoIntp
     Laurentia_F6_RM
     Baltica_StableEurope_RM
     Baltica_StableEurope_F6_RM
@@ -50,11 +57,15 @@ The following subfolders
     Baltica_StableEurope_F6_RM_stp12
     rot_version
     |----Laurentia_RM_1deg
+    |----Laurentia_RM_1deg_NoIntp
     |----Laurentia_RM_15deg
+    |----Laurentia_RM_15deg_NoIntp
     |----Laurentia_RM_po_15deg
     |----Laurentia_RM_p_15deg
     |----Laurentia_RM_45deg
+    |----Laurentia_RM_45deg_NoIntp
     |----Laurentia_RM_NoErr_45deg
+    |----Laurentia_RM_NoErr_45deg_NoIntp
     |----Laurentia_RM_GMAP2015BALcoord
     |----Laurentia_F6_RM_GMAP2015BALcoord
     |----Laurentia_F6_RMi_GMAP2015BALcoord
