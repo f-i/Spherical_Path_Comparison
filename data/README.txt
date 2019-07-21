@@ -5,12 +5,14 @@ The following data
     Laurentia_RM_NoErr_NoIntp.txt: Laurentia_RM_NoErr.txt without interpolated poles
     Laurentia_F6_RM.txt
     Baltica_StableEurope_RM.txt
-    Baltica_StableEurope_F6_RM.txt: reproduced from raw VGPs; uninterpolated
-    Baltica_StableEurope_F6_RMi.txt: reproduced from raw VGPs; interpolated same as Table 4 "RM f=0.6" columns of Torsvik et al. 2012 Earth Sci Rev
-    Baltica_StableEurope_F6_RM_stp4.txt
-    Baltica_StableEurope_F6_RM_stp6.txt
+    Baltica_StableEurope_F6_RM_NoIntp.txt: reproduced from original paleopoles; uninterpolated
+    Baltica_StableEurope_F6_RMi.txt: reproduced from original paleopoles; interpolated same as Table 4 "RM f=0.6" columns of Torsvik et al. 2012 Earth Sci Rev
     Baltica_StableEurope_F6_RM_stp8.txt
     Baltica_StableEurope_F6_RM_stp12.txt
+    Laurussia_RM.txt
+    Laurussia_F6_RM.txt
+    Gondwana_RM.txt
+    Gondwana_F6_RM.txt
     rot_version
     |----Laurentia_RM_1deg.txt
     |----Laurentia_RM_1deg_NoIntp.txt: Laurentia_RM_1deg.txt without interpolated poles
@@ -18,6 +20,8 @@ The following data
     |----Laurentia_RM_15deg_NoIntp.txt: Laurentia_RM_15deg.txt without interpolated poles
     |----Laurentia_RM_po_15deg.txt
     |----Laurentia_RM_p_15deg.txt
+    |----Laurentia_RM_po_15deg_re.txt: trajII of pair e with random uncertainties
+    |----Laurentia_RM_po_15deg_re_NoIntp.txt: Laurentia_RM_po_15deg_re.txt without interpolated poles
     |----Laurentia_RM_45deg.txt
     |----Laurentia_RM_45deg_NoIntp.txt: Laurentia_RM_45deg.txt without interpolated poles
     |----Laurentia_RM_NoErr_45deg.txt
@@ -25,21 +29,21 @@ The following data
     |----Laurentia_RM_GMAP2015BALcoord.txt
     |----Laurentia_F6_RM_GMAP2015BALcoord.txt: uninterpolated
     |----Laurentia_F6_RMi_GMAP2015BALcoord.txt: interpolated
-    |----Laurentia_F6_RM_stp4_GMAP2015BALcoord.txt
-    |----Laurentia_F6_RM_stp6_GMAP2015BALcoord.txt
     |----Laurentia_F6_RM_stp8_GMAP2015BALcoord.txt
     |----Laurentia_F6_RM_stp12_GMAP2015BALcoord.txt
+    |----Laurussia_RM_GMAP2015AFRcoord.txt
+    |----Laurussia_F6_RM_GMAP2015AFRcoord.txt
 in this folder contain the following 10 columns:
 dec	inc	age	dm	dp	dm_azi	k	n	possib_loest_age	possib_hiest_age
 What they are:
-	dec:				longitude of mean pole (if n>1), or VGP (if n=1), or interoperated pole (if n=0)
-	inc:				latitude of mean pole (if n>1), or VGP (if n=1), or interoperated pole (if n=0)
+	dec:				longitude of mean pole (if n>1), or paleopole (if n=1), or interoperated pole (if n=0)
+	inc:				latitude of mean pole (if n>1), or paleopole (if n=1), or interoperated pole (if n=0)
 	age:				pole age
 	dm:					half of pole uncertainty major axis
 	dp:					half of pole uncertainty minor axis
 	dm_azi:				azimuth of pole uncertainty major axis
 	k:					Fisher precision parameter
-	n:					number of VGPs that put together the pole
+	n:					number of paleopoles that put together the pole
 	possib_loest_age:	low limit of the age uncertainty
 	possib_hiest_age:	high limit of the age uncertainty
 
@@ -50,18 +54,23 @@ The following subfolders
     Laurentia_RM_NoErr_NoIntp
     Laurentia_F6_RM
     Baltica_StableEurope_RM
-    Baltica_StableEurope_F6_RM
+    Baltica_StableEurope_F6_RM_NoIntp
     Baltica_StableEurope_F6_RMi
-    Baltica_StableEurope_F6_RM_stp6
     Baltica_StableEurope_F6_RM_stp8
     Baltica_StableEurope_F6_RM_stp12
+    Laurussia_RM
+    Laurussia_F6_RM
+    Gondwana_RM
+    Gondwana_F6_RM
     rot_version
     |----Laurentia_RM_1deg
     |----Laurentia_RM_1deg_NoIntp
     |----Laurentia_RM_15deg
     |----Laurentia_RM_15deg_NoIntp
     |----Laurentia_RM_po_15deg
+    |----Laurentia_RM_po_15deg_NoIntp
     |----Laurentia_RM_p_15deg
+    |----Laurentia_RM_p_15deg_NoIntp
     |----Laurentia_RM_45deg
     |----Laurentia_RM_45deg_NoIntp
     |----Laurentia_RM_NoErr_45deg
@@ -70,8 +79,10 @@ The following subfolders
     |----Laurentia_F6_RM_GMAP2015BALcoord
     |----Laurentia_F6_RMi_GMAP2015BALcoord
     |----Laurentia_F6_RM_stp12_GMAP2015BALcoord
+    |----Laurussia_RM_GMAP2015AFRcoord
+    |----Laurussia_F6_RM_GMAP2015AFRcoord
 in this main folder correspond to the above listed text files, and contain the
-original VGPs for the mean poles with N>25.
+original paleopoles for the mean poles with N>25.
 
 
 All the difference-result data in the "0.result_tables" subfolder contain the
