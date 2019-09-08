@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 31May2019
+Modified on 8Sep2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.7.3
+@__version__	:	0.7.4
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -29,8 +29,8 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <https://www.gnu.org/licenses/>.
 --------------------------------------------------------------------------------
 Environment:
-    Python3.6/7 + NumPy                         (PmagPy installation not needed)
-    GMT5 + *NIX(-like) Shell + bc
+    Python3.6/3.7 + NumPy1.16
+    GMT5 + *NIX(-like) Shell: Bash4/5 + bc1.06/1.07
 --------------------------------------------------------------------------------
 TODO:
     1. Tidy functions up into classes
@@ -291,7 +291,7 @@ def get_fsh(dire):
         _i_.append(irot)
     return np.column_stack((_d_,_i_))
 
-def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
+def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
     """po1/2 (pole1/2 in Path1/2): numpy void; da1/2: a nested list of
     directional data [dec,inc] (a di_block). boots=1000 should be sufficient;
     Large number for boots means more computing time. See related discussion here:
@@ -670,8 +670,8 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     tt1,tt2=0,0  #tt1/2 intermedium segment azimuth for trj 1/2
     n_row=min(len(ar1),len(ar2))
     lst=[]
-    print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
-    for i in range(0,n_row):  # [17]
+    #print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
+    for i in range(0,n_row): # [17]
         #ind,sgd=0,0
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -748,8 +748,8 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
             tt1,tt2=eta1,eta2
         #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
         lst.append((i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,
-                                                                                    seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+        print("{0}\t{1:g}\t{2:.9g}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,
+                                                                                          seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
     return structured_array(lst,['00_no','01_tstop','10_spa_pol_dif',
                                  '11_spa_pol_tes','20_ang_seg_dif',
                                  '21_ang_seg_tes','30_len_seg_dif',
@@ -924,6 +924,52 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                                  '23_course_seg2','32_len_seg1','33_len_seg2'],
                             ['<i2','<f2','<f8','<i1','<f8','<f4','<f8','<f4',
                              '<f8','<f8','<f8','<f8'])
+
+def fit_quality(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
+    """Calculate Fit Quality of a pair of polar wander paths
+    trj1 or trj2: a ASCII text file, or a numpy array;
+    fmt1: trj1 data format; fmt2: trj2 data format;
+    pnh1 or pnh2: header line number, 1 means first line, 0 means no header line
+    Source: @__author__, Sep2019"""
+    ar1=trj1 if fmt1=='ar' else ppf(trj1,pnh1)  #sep default as tab
+    ar2=trj2 if fmt2=='ar' else ppf(trj2,pnh2)
+    ar1=ar1[np.in1d(ar1[:]['age'],ar2[:]['age'])]  #remove age-unpaired rows in both arrays
+    ar2=ar2[np.in1d(ar2[:]['age'],ar1[:]['age'])]
+    m11=(ar1['dm']+ar1['dp'])/2<=5  #a mask
+    sub11=ar1['dm'][m11]
+    sub11[:]=1
+    m12=((ar1['dm']+ar1['dp'])/2>5)&((ar1['dm']+ar1['dp'])/2<=10)
+    sub12=ar1['dm'][m12]
+    sub12[:]=2
+    m13=((ar1['dm']+ar1['dp'])/2>10)&((ar1['dm']+ar1['dp'])/2<=20)
+    sub13=ar1['dm'][m13]
+    sub13[:]=3
+    m14=(ar1['dm']+ar1['dp'])/2>20
+    sub14=ar1['dm'][m14]
+    sub14[:]=4
+    sc1=np.mean(sub11.mean()+sub12.mean()+sub13.mean()+sub14.mean())
+    if sc1<1.5: sy1='A'
+    elif 1.5<=sc1<2.5: sy1='B'
+    elif 2.5<=sc1<3.5: sy1='C'
+    else: sy1='D'
+    m21=(ar2['dm']+ar2['dp'])/2<=5
+    sub21=ar2['dm'][m21]
+    sub21[:]=1
+    m22=((ar2['dm']+ar2['dp'])/2>5)&((ar2['dm']+ar2['dp'])/2<=10)
+    sub22=ar2['dm'][m22]
+    sub22[:]=2
+    m23=((ar2['dm']+ar2['dp'])/2>10)&((ar2['dm']+ar2['dp'])/2<=20)
+    sub23=ar2['dm'][m23]
+    sub23[:]=3
+    m24=(ar2['dm']+ar2['dp'])/2>20
+    sub24=ar2['dm'][m24]
+    sub24[:]=4
+    sc2=np.mean(sub21.mean()+sub22.mean()+sub23.mean()+sub24.mean())
+    if sc2<1.5: sy2='A'
+    elif 1.5<=sc2<2.5: sy2='B'
+    elif 2.5<=sc2<3.5: sy2='C'
+    else: sy2='D'
+    return sy1,sy2
 
 def run_sh(script,stdin=None):
     """Raises error on non-zero return code
@@ -1142,7 +1188,7 @@ def main1():
     """Run the algorithm on real-world examples of pmag paths (at reduced data
     density) vs. modeled one"""
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/501FHS120predictPWP105.d')
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/101FHS120predictPWP105.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
@@ -1150,11 +1196,11 @@ def main1():
     tbin=10		#18,10,2
     step=5	#9,5,1
     modl='ay18'
-    pid='501comb'
+    pid='101comb'
     wer='/tmp'
-    for fod in range(21,30):
-        for mav in [0]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-            for wgt in [2]:  #[0,1,2,3,4,5]:
+    for fod in range(2,30):
+        for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+            for wgt in [0]:  #[0,1,2,3,4,5]:
                 pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
                                                                                      step,mav,wgt),
                             pnh=1)
@@ -1181,23 +1227,24 @@ def main1():
                 np.savetxt('{0}/{1:03d}/{2}_{3}/{4}_{5}_simil/{2}_{3}_{4}_{5}_{6}_{7}.d'.format(wer,fod,modl,pid,str(tbin),str(step),str(mav),str(wgt)),
                            simil,delimiter='	',fmt='%.9g',comments='',
                            header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
-                print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
+                fq_=fit_quality(pmag_pp,modl_pp,'ar','ar')
+                print('---FQ:{}---{}----DOUBLE-CHECK----{}---END----'.format(fq_,mav,wgt))
 
 def main():
     """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/101FHS120predictPWP21.d')
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/801MHS120predictPWP105.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
-    #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
-    tbin=2		#18,10,2
-    step=1	#9,5,1
+    #-Pmag APWPs from Different Algorithms, versus HS Model Predicted APWP------
+    tbin=10		#18,10,2
+    step=5	#9,5,1
     modl='ay18'
-    pid='101comb'
+    pid='801comb'
     wer='/tmp'
-    for mav in [11,12]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in [0,1,2,3,4,5]:  #[0,1,2,3,4,5]:
+    for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+        for wgt in [0]:  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
                         pnh=1)
@@ -1215,7 +1262,7 @@ def main():
                     #print(raw_pls)
                     np.savetxt('/tmp/{}_{}_{}_{}_{}_{}/{}.txt'.format(modl,pid,str(tbin),str(step),str(mav),str(wgt),str(i['age'])),
                                raw_pls,delimiter='	',fmt='%.9g')
-            print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
+            #print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
             makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),
                      exist_ok=True)
             #print(pmag_pp)
@@ -1224,7 +1271,8 @@ def main():
             np.savetxt('{0}/{1}_{2}/{3}_{4}_simil/{1}_{2}_{3}_{4}_{5}_{6}.d'.format(wer,modl,pid,str(tbin),str(step),str(mav),str(wgt)),
                        simil,delimiter='	',fmt='%.9g',comments='',
                        header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
-            print('-----------{}----DOUBLE-CHECK----{}---END----'.format(mav,wgt))
+            #fq_=fit_quality(pmag_pp,modl_pp,'ar','ar')
+            #print('---FQ:{}---{}----DOUBLE-CHECK----{}---END----'.format(fq_,mav,wgt))
 
 def test():
     """Test if the functions work"""
