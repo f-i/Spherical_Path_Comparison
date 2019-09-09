@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 8Sep2019
+Modified on 9Sep2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.7.4
+@__version__	:	0.7.5
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -925,16 +925,11 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                             ['<i2','<f2','<f8','<i1','<f8','<f4','<f8','<f4',
                              '<f8','<f8','<f8','<f8'])
 
-def fit_quality(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
+def fit_quality(trj1,trj2):
     """Calculate Fit Quality of a pair of polar wander paths
-    trj1 or trj2: a ASCII text file, or a numpy array;
-    fmt1: trj1 data format; fmt2: trj2 data format;
-    pnh1 or pnh2: header line number, 1 means first line, 0 means no header line
-    Source: @__author__, Sep2019"""
-    ar1=trj1 if fmt1=='ar' else ppf(trj1,pnh1)  #sep default as tab
-    ar2=trj2 if fmt2=='ar' else ppf(trj2,pnh2)
-    ar1=ar1[np.in1d(ar1[:]['age'],ar2[:]['age'])]  #remove age-unpaired rows in both arrays
-    ar2=ar2[np.in1d(ar2[:]['age'],ar1[:]['age'])]
+    trj1 or trj2: a numpy array.                 Source: @__author__, Sep2019"""
+    ar1=trj1[np.in1d(trj1[:]['age'],trj2[:]['age'])]  #remove age-unpaired rows in both arrays
+    ar2=trj2[np.in1d(trj2[:]['age'],trj1[:]['age'])]
     m11=(ar1['dm']+ar1['dp'])/2<=5  #a mask
     sub11=ar1['dm'][m11]
     sub11[:]=1
@@ -947,7 +942,8 @@ def fit_quality(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     m14=(ar1['dm']+ar1['dp'])/2>20
     sub14=ar1['dm'][m14]
     sub14[:]=4
-    sc1=np.mean(sub11.mean()+sub12.mean()+sub13.mean()+sub14.mean())
+    sc1=np.mean([np.nan_to_num(sub11.mean()),np.nan_to_num(sub12.mean()),
+                 np.nan_to_num(sub13.mean()),np.nan_to_num(sub14.mean())])
     if sc1<1.5: sy1='A'
     elif 1.5<=sc1<2.5: sy1='B'
     elif 2.5<=sc1<3.5: sy1='C'
@@ -964,7 +960,8 @@ def fit_quality(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     m24=(ar2['dm']+ar2['dp'])/2>20
     sub24=ar2['dm'][m24]
     sub24[:]=4
-    sc2=np.mean(sub21.mean()+sub22.mean()+sub23.mean()+sub24.mean())
+    sc2=np.mean([np.nan_to_num(sub21.mean()),np.nan_to_num(sub22.mean()),
+                 np.nan_to_num(sub23.mean()),np.nan_to_num(sub24.mean())])
     if sc2<1.5: sy2='A'
     elif 1.5<=sc2<2.5: sy2='B'
     elif 2.5<=sc2<3.5: sy2='C'
@@ -1198,7 +1195,7 @@ def main1():
     modl='ay18'
     pid='101comb'
     wer='/tmp'
-    for fod in range(2,30):
+    for fod in range(18,30):
         for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
             for wgt in [0]:  #[0,1,2,3,4,5]:
                 pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
@@ -1227,7 +1224,7 @@ def main1():
                 np.savetxt('{0}/{1:03d}/{2}_{3}/{4}_{5}_simil/{2}_{3}_{4}_{5}_{6}_{7}.d'.format(wer,fod,modl,pid,str(tbin),str(step),str(mav),str(wgt)),
                            simil,delimiter='	',fmt='%.9g',comments='',
                            header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
-                fq_=fit_quality(pmag_pp,modl_pp,'ar','ar')
+                fq_=fit_quality(pmag_pp,modl_pp)
                 print('---FQ:{}---{}----DOUBLE-CHECK----{}---END----'.format(fq_,mav,wgt))
 
 def main():
@@ -1271,7 +1268,7 @@ def main():
             np.savetxt('{0}/{1}_{2}/{3}_{4}_simil/{1}_{2}_{3}_{4}_{5}_{6}.d'.format(wer,modl,pid,str(tbin),str(step),str(mav),str(wgt)),
                        simil,delimiter='	',fmt='%.9g',comments='',
                        header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
-            #fq_=fit_quality(pmag_pp,modl_pp,'ar','ar')
+            #fq_=fit_quality(pmag_pp,modl_pp)
             #print('---FQ:{}---{}----DOUBLE-CHECK----{}---END----'.format(fq_,mav,wgt))
 
 def test():
