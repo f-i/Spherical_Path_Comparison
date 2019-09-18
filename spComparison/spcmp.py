@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 9Sep2019
+Modified on 18Sep2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.7.5
+@__version__	:	0.7.7
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -218,12 +218,12 @@ def structured_array(lst,nms,fmt):
 def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     """originate random points around (0,0) on 2D plane; then rotate (0,0) with
     all these points to a specific location (lon,lat) on Earth for modeling 3D
-    spherical surface ellipse; maj/mio must be diameter, if radius given,
+    spherical surface ellipse; maj/mio MUST be DIAMETER, if radius given,
     multiply by 2 beforehand (https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule);
     azimuth is in degree(s); axis_unit=0/1 correspond to have maj,mio in
-    kilometers/degrees. Note that alpha95 derived from fisher_mean is radius,
-    not diameter (Chp6, Butler98)                   Source: @__author__, 2016"""
-    #sigma: standard deviation; variance1/2=square of sigma1/2; length of semi-maj(in)or axis = 1.96 standard deviations
+    kilometers/degrees. Note that alpha95 derived from fisher_mean, or dp/dm is
+    radius, not diameter (Chp6, Butler98)           Source: @__author__, 2016"""
+    #sigma: standard deviation (SD); variance1/2=square of sigma1/2; length of semi-maj(in)or axis = 1.96 SDs
     if axis_unit==0:
         v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
     else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
@@ -310,7 +310,7 @@ def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
             bdi1.append([fpars1['dec'],fpars1['inc']])
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
-                                       po1['dm'],po1['dp'])
+                                       2*po1['dm'],2*po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
@@ -324,7 +324,7 @@ def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
             bdi2.append([fpars2['dec'],fpars2['inc']])
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
-                                       po2['dm'],po2['dp'])
+                                       2*po2['dm'],2*po2['dp'])
         #print(len(lons2),len(lats2))  #for debugging; should =siz in elips_nrmdev_gen_n function
         bdi2=list(zip(lons2,lats2))
         #np.savetxt("/tmp/ssd.txt",bdi2,delimiter='	',fmt='%.9g')
@@ -353,7 +353,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
             bdi1.append([fpars1['dec'],fpars1['inc']])
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
-                                       po1['dm'],po1['dp'])
+                                       2*po1['dm'],2*po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
@@ -367,7 +367,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
             bdi2.append([fpars2['dec'],fpars2['inc']])
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
-                                       po2['dm'],po2['dp'])
+                                       2*po2['dm'],2*po2['dp'])
         bdi2=list(zip(lons2,lats2))
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds2d(bdi1),get_bounds2d(bdi2)
@@ -394,7 +394,7 @@ def common_dir_ellip1gen(point,folder='traj1'):
         lon,lat=fpars['dec'],fpars['inc']
     else:
         lon,lat=ellipsenrmdev_1gen(point['dec'],point['inc'],point['dm_azi'],
-                                   point['dm'],point['dp'])
+                                   2*point['dm'],2*point['dp'])
     return lon,lat
 
 def ang4_2suc_disp_direc_gdesics(lo1,la1,lo2,la2,lo3,la3):
@@ -653,7 +653,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     (distance) and per-pair-of-coeval-segments' angular and length difs;
     Here each segment's directional change is always relative to its previous
     segment (in fact eventually relative to the 1st segment in 2D space)
-    trj1 or trj2: a ASCII text file, or a numpy array;
+    trj1 or trj2: an ASCII text file, or a numpy array;
     fmt1: trj1 data format; fmt2: trj2 data format;
     pnh1 or pnh2: header line number, 1 means first line, 0 means no header line;
     dfn1/2: trj1/2 data file name, for creating a folder under the same number
@@ -925,7 +925,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                             ['<i2','<f2','<f8','<i1','<f8','<f4','<f8','<f4',
                              '<f8','<f8','<f8','<f8'])
 
-def fit_quality(trj1,trj2):
+def fit_quality(trj1,trj2,rtn_grd=1):
     """Calculate Fit Quality of a pair of polar wander paths
     trj1 or trj2: a numpy array.                 Source: @__author__, Sep2019"""
     ar1=trj1[np.in1d(trj1[:]['age'],trj2[:]['age'])]  #remove age-unpaired rows in both arrays
@@ -942,12 +942,11 @@ def fit_quality(trj1,trj2):
     m14=(ar1['dm']+ar1['dp'])/2>20
     sub14=ar1['dm'][m14]
     sub14[:]=4
-    sc1=np.mean([np.nan_to_num(sub11.mean()),np.nan_to_num(sub12.mean()),
-                 np.nan_to_num(sub13.mean()),np.nan_to_num(sub14.mean())])
-    if sc1<1.5: sy1='A'
-    elif 1.5<=sc1<2.5: sy1='B'
-    elif 2.5<=sc1<3.5: sy1='C'
-    else: sy1='D'
+    sc1=(sub11.sum()+sub12.sum()+sub13.sum()+sub14.sum())/len(ar1)
+    if sc1<1.5: sy1,sy_1='A',3
+    elif 1.5<=sc1<2.5: sy1,sy_1='B',2
+    elif 2.5<=sc1<3.5: sy1,sy_1='C',1
+    else: sy1,sy_1='D',0
     m21=(ar2['dm']+ar2['dp'])/2<=5
     sub21=ar2['dm'][m21]
     sub21[:]=1
@@ -960,13 +959,13 @@ def fit_quality(trj1,trj2):
     m24=(ar2['dm']+ar2['dp'])/2>20
     sub24=ar2['dm'][m24]
     sub24[:]=4
-    sc2=np.mean([np.nan_to_num(sub21.mean()),np.nan_to_num(sub22.mean()),
-                 np.nan_to_num(sub23.mean()),np.nan_to_num(sub24.mean())])
-    if sc2<1.5: sy2='A'
-    elif 1.5<=sc2<2.5: sy2='B'
-    elif 2.5<=sc2<3.5: sy2='C'
-    else: sy2='D'
-    return sy1,sy2
+    sc2=(sub21.sum()+sub22.sum()+sub23.sum()+sub24.sum())/len(ar2)
+    if sc2<1.5: sy2,sy_2='A',3
+    elif 1.5<=sc2<2.5: sy2,sy_2='B',2
+    elif 2.5<=sc2<3.5: sy2,sy_2='C',1
+    else: sy2,sy_2='D',0
+    if rtn_grd==1: return sy1,sy2
+    else: return sy_1,sy_2
 
 def run_sh(script,stdin=None):
     """Raises error on non-zero return code
@@ -1013,7 +1012,8 @@ def calc(pair,n_o,t_0=0,t_1=530,oldform=1):
     d_a=(tmp[2:]['20_ang_seg_dif']*tmp[2:]['21_ang_seg_tes']).sum()/(180*(tmp[:]['10_spa_pol_dif'].size-2))
     #30cm/yr is about 2.697961777 degree/myr
     d_l=(tmp[1:]['30_len_seg_dif']*tmp[1:]['31_len_seg_tes']).sum()/(2.697961777*(tmp[:]['01_tstop'].max()-tmp[:]['01_tstop'].min()))
-    print(f'{d_s:g}\t{d_a:g}\t{d_l:g}\t{n_o:s}\t{t_0:g}\t{t_1:g}\t{(d_s+d_a+d_l)/3.:g}')
+    print(f'{d_s:g}\t{d_a:g}\t{d_l:g}\t{n_o:s}\t{t_0:g}\t{t_1:g}\t{(d_s+d_a+d_l)/3.:g}',
+          end="\t")
 
 def calc_nt(pair,n_o,t_0=0,t_1=530,oldform=1):
     """Derived from the function 'calc'; Prints difference measurements without
@@ -1190,12 +1190,12 @@ def main1():
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
-    tbin=10		#18,10,2
-    step=5	#9,5,1
+    tbin=10
+    step=5
     modl='ay18'
     pid='101comb'
     wer='/tmp'
-    for fod in range(18,30):
+    for fod in range(26,30):
         for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
             for wgt in [0]:  #[0,1,2,3,4,5]:
                 pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
@@ -1270,6 +1270,28 @@ def main():
                        header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
             #fq_=fit_quality(pmag_pp,modl_pp)
             #print('---FQ:{}---{}----DOUBLE-CHECK----{}---END----'.format(fq_,mav,wgt))
+
+def main_fq():
+    """Calculate Fit Quality scores for the 168 pairs of pmag path vs. modeled
+    path"""
+    #-------------Prepare Model Predicted APWP----------------------------------
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/501MHS120predictPWP2010.d')
+    modl_pp[:]['dm']/=111.195051975
+    modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
+
+    #-Pmag APWPs from Different Algorithms, versus HS Model Predicted APWP------
+    tbin=20
+    step=10
+    modl='ay18'
+    pid='501comb'
+    wer='/tmp'
+    for mav in range(0,28):  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+        for wgt in range(0,6):  #[0,1,2,3,4,5]:
+            pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
+                                                                         step,mav,wgt),
+                        pnh=1)
+            fq_=fit_quality(pmag_pp,modl_pp)
+            print('{}\t{}\t{}\t{}'.format(mav,wgt,fq_[0],fq_[1]))
 
 def test():
     """Test if the functions work"""
