@@ -182,6 +182,8 @@ def ppf0(fname,pnh=0):
     pdt=[('dec','<f8'),('inc','<f8'),('age','<f2'),('dm_azi','<f8'),
          ('dm','<f8'),('dp','<f8'),('n','<i2')]
     vgp=np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
+    vgp['dm']/=2  #model-predicted path from GMT backtracker with DIAMETER axes, but dm/dp should be radius
+    vgp['dp']/=2
     vgp['n']=1
     return vgp
 
@@ -236,8 +238,9 @@ def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     except ValueError as err: print("error",err,"on rdloc",rdloc)	#used for debugging
 
 def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,siz=1000,axis_unit=1):
-    """check function ellipsenrmdev_1gen, the difference here is generating a
-    certain number of random points              Source: @__author__, Oct2016"""
+    """see more details in function ellipsenrmdev_1gen, the difference is here
+    it's generating a certain number of random points
+    Source: @__author__, Oct2016"""
     if axis_unit==0:	#variance=sigma square
         v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
     else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
