@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 18Sep2019
+Modified on 19Sep2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.7.7
+@__version__	:	0.7.8
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -182,7 +182,7 @@ def ppf0(fname,pnh=0):
     pdt=[('dec','<f8'),('inc','<f8'),('age','<f2'),('dm_azi','<f8'),
          ('dm','<f8'),('dp','<f8'),('n','<i2')]
     vgp=np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
-    vgp['dm']/=2  #model-predicted path from GMT backtracker with DIAMETER axes, but dm/dp should be radius
+    vgp['dm']/=2  #model-predicted pole from GMT backtracker with DIAMETER axes, but dm/dp should be radius
     vgp['dp']/=2
     vgp['n']=1
     return vgp
@@ -217,19 +217,18 @@ def structured_array(lst,nms,fmt):
     equivalent string 'i1','i2','i4','i8'        Source: @__author__, Sep2018"""
     return np.array(lst,np.dtype({'names':nms,'formats':fmt}))
 
-def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
-    """originate random points around (0,0) on 2D plane; then rotate (0,0) with
-    all these points to a specific location (lon,lat) on Earth for modeling 3D
-    spherical surface ellipse; maj/mio MUST be DIAMETER, if radius given,
-    multiply by 2 beforehand (https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule);
-    azimuth is in degree(s); axis_unit=0/1 correspond to have maj,mio in
-    kilometers/degrees. Note that alpha95 derived from fisher_mean, or dp/dm is
-    radius, not diameter (Chp6, Butler98)           Source: @__author__, 2016"""
-    #sigma: standard deviation (SD); variance1/2=square of sigma1/2; length of semi-maj(in)or axis = 1.96 SDs
+def ellipsenrmdev_1gen(lon,lat,azi,hma,hmi,dros=26,axis_unit=1):
+    """originate random points around (0,0) on 2D plane, then rotate (0,0) with
+    all these points to a specified location (lon,lat) on Earth for modeling 3D
+    spherical surface ellipse; hma/hmi MUST be RADIUS (half of DIAMETER);
+    azimuth's unit can be switched by axis_unit (0: have hma,hmi in kilometer;
+    1: degree). Note that alpha95 derived from fisher_mean, or dp/dm, is radius,
+    not diameter (Chp6, Butler98)                   Source: @__author__, 2016"""
+    #sigma: population standard deviation (SD); square of sigma: population variance (e.g. v_1, v_2); length of semi-m[aj/in]or axis = 1.96 SDs
     if axis_unit==0:
-        v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
-    else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
-    #cov: covariance; the covariance matrix is diagonal
+        v_1,v_2=((hma/111.195051975)/1.96)**2,((hmi/111.195051975)/1.96)**2
+    else: v_1,v_2=(hma/1.96)**2,(hmi/1.96)**2
+    #cov: covariance matrix, which is diagonal
     pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=dros) #to rotate the ellipse, multiply a matrix; read fig/gaussians.pdf (http://cs229.stanford.edu/section/gaussians.pdf)
     rnd=PMAGPY3().vector_mean(np.c_[pts,np.ones(dros)])[0][:2]
     rdl=run_sh(ASSIGN_AZI4ROTATED_ELLIP.format(lon,lat,rnd[0],rnd[1],azi))  #see more info from https://pyformat.info/
@@ -237,13 +236,13 @@ def ellipsenrmdev_1gen(lon,lat,azi,maj,mio,dros=26,axis_unit=1):
     try: return float(rdloc[0]),float(rdloc[1])
     except ValueError as err: print("error",err,"on rdloc",rdloc)	#used for debugging
 
-def elips_nrmdev_gen_n(lon,lat,azi,maj,mio,siz=1000,axis_unit=1):
+def elips_nrmdev_gen_n(lon,lat,azi,hma,hmi,siz=1000,axis_unit=1):
     """see more details in function ellipsenrmdev_1gen, the difference is here
     it's generating a certain number of random points
     Source: @__author__, Oct2016"""
     if axis_unit==0:	#variance=sigma square
-        v_1,v_2=((maj/111.195051975)/1.96)**2,((mio/111.195051975)/1.96)**2
-    else: v_1,v_2=(maj/1.96)**2,(mio/1.96)**2
+        v_1,v_2=((hma/111.195051975)/1.96)**2,((hmi/111.195051975)/1.96)**2
+    else: v_1,v_2=(hma/1.96)**2,(hmi/1.96)**2
     rlo,rla=[],[]
     for _ in range(siz):
         pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=26)  #be careful when size is larger than 2738, https://stackoverflow.com/questions/52587499/possible-random-multivariate-normal-bug-when-size-is-too-large
@@ -309,11 +308,11 @@ def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
         bdi1=[]
         for _ in range(boots):
             dir1=po1[['dec','inc','k','n']]
-            fpars1=PMAGPY3().fisher_mean(get_fsh(dir1))
+            fpars1=PMAGPY3().fisher_mean(get_fsh(dir1))  #need to re-think, why we need a fisher_mean step here? Just for suppressing the dispersion? But this suppressing is too much
             bdi1.append([fpars1['dec'],fpars1['inc']])
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
-                                       2*po1['dm'],2*po1['dp'])
+                                       po1['dm'],po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
@@ -327,12 +326,19 @@ def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
             bdi2.append([fpars2['dec'],fpars2['inc']])
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
-                                       2*po2['dm'],2*po2['dp'])
+                                       po2['dm'],po2['dp'])
         #print(len(lons2),len(lats2))  #for debugging; should =siz in elips_nrmdev_gen_n function
         bdi2=list(zip(lons2,lats2))
         #np.savetxt("/tmp/ssd.txt",bdi2,delimiter='	',fmt='%.9g')
+    ##-------*******Save*To*File*For*Check********------------------------------
+    print(type(bdi1))
+    print(type(bdi2))
+    np.savetxt("/tmp/1cloud.txt",np.array(bdi1),delimiter='	',fmt='%.9g')
+    np.savetxt("/tmp/2cloud.txt",np.array(bdi2),delimiter='	',fmt='%.9g')
+    ##-------*******Save*To*File*For*Check********----------------END-----------
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)
+    print(bounds1,bounds2)
     out=[]
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
@@ -356,7 +362,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
             bdi1.append([fpars1['dec'],fpars1['inc']])
     else:
         lons1,lats1=elips_nrmdev_gen_n(po1['dec'],po1['inc'],po1['dm_azi'],
-                                       2*po1['dm'],2*po1['dp'])
+                                       po1['dm'],po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
@@ -370,7 +376,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
             bdi2.append([fpars2['dec'],fpars2['inc']])
     else:
         lons2,lats2=elips_nrmdev_gen_n(po2['dec'],po2['inc'],po2['dm_azi'],
-                                       2*po2['dm'],2*po2['dp'])
+                                       po2['dm'],po2['dp'])
         bdi2=list(zip(lons2,lats2))
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds2d(bdi1),get_bounds2d(bdi2)
@@ -397,7 +403,7 @@ def common_dir_ellip1gen(point,folder='traj1'):
         lon,lat=fpars['dec'],fpars['inc']
     else:
         lon,lat=ellipsenrmdev_1gen(point['dec'],point['inc'],point['dm_azi'],
-                                   2*point['dm'],2*point['dp'])
+                                   point['dm'],point['dp'])
     return lon,lat
 
 def ang4_2suc_disp_direc_gdesics(lo1,la1,lo2,la2,lo3,la3):
@@ -674,7 +680,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     n_row=min(len(ar1),len(ar2))
     lst=[]
     #print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
-    for i in range(0,n_row): # [17]
+    for i in [1]:  #range(0,n_row): # [17]
         #ind,sgd=0,0
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -1198,8 +1204,8 @@ def main1():
     modl='ay18'
     pid='101comb'
     wer='/tmp'
-    for fod in range(26,30):
-        for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+    for fod in range(11,12):
+        for mav in [14]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
             for wgt in [0]:  #[0,1,2,3,4,5]:
                 pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
                                                                                      step,mav,wgt),
