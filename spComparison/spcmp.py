@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 19Sep2019
+Modified on 23Sep2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.7.8
+@__version__	:	0.7.9
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -330,15 +330,22 @@ def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
         #print(len(lons2),len(lats2))  #for debugging; should =siz in elips_nrmdev_gen_n function
         bdi2=list(zip(lons2,lats2))
         #np.savetxt("/tmp/ssd.txt",bdi2,delimiter='	',fmt='%.9g')
-    ##-------*******Save*To*File*For*Check********------------------------------
-    print(type(bdi1))
-    print(type(bdi2))
-    np.savetxt("/tmp/1cloud.txt",np.array(bdi1),delimiter='	',fmt='%.9g')
-    np.savetxt("/tmp/2cloud.txt",np.array(bdi2),delimiter='	',fmt='%.9g')
-    ##-------*******Save*To*File*For*Check********----------------END-----------
+    ##-------********Save*To*File*For*Debugging********-------------------------
+    #print(type(bdi1))
+    #print(type(bdi2))
+    #np.savetxt("/tmp/1cloud.txt",np.array(bdi1),delimiter='	',fmt='%.9g')
+    #np.savetxt("/tmp/2cloud.txt",np.array(bdi2),delimiter='	',fmt='%.9g')
+    ##-------********Save*To*File*For*Debugging********----------------END------
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
-    bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)
-    print(bounds1,bounds2)
+    bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)  #type: list
+    #**When*2*Poles*Are*Close*To*Geographic*North*Pole--z-axis-cmp-problematic--
+    print(bounds1,bounds2)  #for debugging
+    if (po1['dm']+po1['dp'])/2>PMAGPY3().angle((po1['dec'],po1['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
+        bounds1[2][1]=1
+    if (po2['dm']+po2['dp'])/2>PMAGPY3().angle((po2['dec'],po2['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
+        bounds2[2][1]=1
+    print(bounds1,bounds2)  #for debugging
+    #**When*2*Poles*Are*Close*To*Geographic*North*Pole--------------END---------
     out=[]
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
@@ -680,7 +687,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     n_row=min(len(ar1),len(ar2))
     lst=[]
     #print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
-    for i in [1]:  #range(0,n_row): # [17]
+    for i in range(0,n_row): # [17]
         #ind,sgd=0,0
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -1204,8 +1211,8 @@ def main1():
     modl='ay18'
     pid='101comb'
     wer='/tmp'
-    for fod in range(11,12):
-        for mav in [14]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+    for fod in range(0,30):
+        for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
             for wgt in [0]:  #[0,1,2,3,4,5]:
                 pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
                                                                                      step,mav,wgt),
@@ -1239,7 +1246,7 @@ def main1():
 def main():
     """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/801MHS120predictPWP105.d')
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/101FHS120predictPWP105.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
@@ -1247,9 +1254,9 @@ def main():
     tbin=10		#18,10,2
     step=5	#9,5,1
     modl='ay18'
-    pid='801comb'
+    pid='101comb'
     wer='/tmp'
-    for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+    for mav in [14]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
         for wgt in [0]:  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
@@ -1284,7 +1291,7 @@ def main_fq():
     """Calculate Fit Quality scores for the 168 pairs of pmag path vs. modeled
     path"""
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/501MHS120predictPWP2010.d')
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/801FHS120predictPWP2010.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
@@ -1292,10 +1299,10 @@ def main_fq():
     tbin=20
     step=10
     modl='ay18'
-    pid='501comb'
+    pid='801comb'
     wer='/tmp'
-    for mav in range(0,28):  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in range(0,6):  #[0,1,2,3,4,5]:
+    for mav in range(28):  #[17]:
+        for wgt in range(6):  #[4]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
                         pnh=1)
