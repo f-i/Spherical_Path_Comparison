@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 23Sep2019
+Modified on 27Sep2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.7.9
+@__version__	:	0.8.1
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -293,13 +293,13 @@ def get_fsh(dire):
         _i_.append(irot)
     return np.column_stack((_d_,_i_))
 
-def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
+def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     """po1/2 (pole1/2 in Path1/2): numpy void; da1/2: a nested list of
     directional data [dec,inc] (a di_block). boots=1000 should be sufficient;
     Large number for boots means more computing time. See related discussion here:
     https://stats.stackexchange.com/questions/86040/rule-of-thumb-for-number-of-bootstrap-samples
     For N>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
-    Source: @__author__ and Chris Rowan, 2016-Feb2018"""
+    Source: @__author__ and Chris Rowan, 2016-Sep2019"""
     if po1['n']>25:
         with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age']))) as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
@@ -333,22 +333,27 @@ def common_dir_elliptical(po1,po2,boots=2000,fn1='file1',fn2='file2'):
     ##-------********Save*To*File*For*Debugging********-------------------------
     #print(type(bdi1))
     #print(type(bdi2))
-    #np.savetxt("/tmp/1cloud.txt",np.array(bdi1),delimiter='	',fmt='%.9g')
-    #np.savetxt("/tmp/2cloud.txt",np.array(bdi2),delimiter='	',fmt='%.9g')
+    np.savetxt("/tmp/1cloud.txt",np.array(bdi1),delimiter='	',fmt='%.9g')
+    np.savetxt("/tmp/2cloud.txt",np.array(bdi2),delimiter='	',fmt='%.9g')
     ##-------********Save*To*File*For*Debugging********----------------END------
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)  #type: list
     #**When*2*Poles*Are*Close*To*Geographic*North*Pole--z-axis-cmp-problematic--
     print(bounds1,bounds2)  #for debugging
-    if (po1['dm']+po1['dp'])/2>PMAGPY3().angle((po1['dec'],po1['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
+    if min(po1['dm'],po1['dp'])>PMAGPY3().angle((po1['dec'],po1['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
         bounds1[2][1]=1
-    if (po2['dm']+po2['dp'])/2>PMAGPY3().angle((po2['dec'],po2['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
+    if min(po2['dm'],po2['dp'])>PMAGPY3().angle((po2['dec'],po2['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
         bounds2[2][1]=1
     print(bounds1,bounds2)  #for debugging
     #**When*2*Poles*Are*Close*To*Geographic*North*Pole--------------END---------
     out=[]
     for i,j in zip(bounds1,bounds2):
         out.append(1 if i[0]>j[1] or i[1]<j[0] else 0)
+    #add a tolerance for when only one axis differentiated but actually really really close to each other
+    if sum(out)==1:
+        out=[]
+        for i,j in zip(bounds1,bounds2):
+            out.append(1 if (i[0]>j[1] and abs(i[0]-j[1])>.008) or (i[1]<j[0] and abs(j[0]-i[1])>.008) else 0)  #0.008 is equivalent to about 28 arc minutes
     _o_=1 if sum(out)>=1 else 0  #1 distinguishable/separate, 0 indistinguishable/overlap
     _a_=PMAGPY3().angle((po1['dec'],po1['inc']),(po2['dec'],po2['inc']))
     return _o_,_a_[0]
@@ -717,6 +722,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             _u_=np.percentile(lst_d_leh_a_ras,97.5)
             _l_=np.percentile(lst_d_leh_ras_rbs,2.5)
+            #sometimes both 0 and 1 appear for multiple 1000-runs; then e.g. run 100 1000-runs, as long as at least 5 1000-runs get 1, choose 1; because 0 should be strict to achieve.
             seg0l1=0 if _u_>_l_ else 1  #--------------------END-i==1----------#
             seg_d_a=np.nan
             seg_d_l=format(leh,'.7f').rstrip('0') if leh<.1 else leh
@@ -1126,7 +1132,7 @@ class PMAGPY3():
         angles=[] # set up a list for angles
         for k in range(x_1.shape[0]): # single vector
             angles.append((np.arccos(np.dot(x_1[k],x_2[k]))*180./np.pi)%360.) # take the dot product
-        return np.array(angles)
+        return np.array(angles) #returns in arc degree, not radian
 
     @staticmethod
     def pseudo(dis):
@@ -1256,8 +1262,8 @@ def main():
     modl='ay18'
     pid='101comb'
     wer='/tmp'
-    for mav in [14]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in [0]:  #[0,1,2,3,4,5]:
+    for mav in [4,5,6,7]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+        for wgt in range(6):  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
                         pnh=1)
