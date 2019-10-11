@@ -2,12 +2,12 @@
 
 '''--------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 27Sep2019
+Modified on 8Oct2019
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.8.1
+@__version__	:	0.8.2
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
@@ -339,12 +339,12 @@ def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     #now check if pass or fail -pass only if error bounds overlap in x,y, and z
     bounds1,bounds2=get_bounds(bdi1),get_bounds(bdi2)  #type: list
     #**When*2*Poles*Are*Close*To*Geographic*North*Pole--z-axis-cmp-problematic--
-    print(bounds1,bounds2)  #for debugging
+    #print(bounds1,bounds2)  #for debugging
     if min(po1['dm'],po1['dp'])>PMAGPY3().angle((po1['dec'],po1['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
         bounds1[2][1]=1
     if min(po2['dm'],po2['dp'])>PMAGPY3().angle((po2['dec'],po2['inc']),(0,90)):  #only for Apparent NORTH Polar Wander Paths
         bounds2[2][1]=1
-    print(bounds1,bounds2)  #for debugging
+    #print(bounds1,bounds2)  #for debugging
     #**When*2*Poles*Are*Close*To*Geographic*North*Pole--------------END---------
     out=[]
     for i,j in zip(bounds1,bounds2):
@@ -1206,16 +1206,17 @@ class PMAGPY3():
 def main1():
     """Run the algorithm on real-world examples of pmag paths (at reduced data
     density) vs. modeled one"""
+    plid=101
+    tbin=10
+    step=5
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/101FHS120predictPWP105.d')
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
-    tbin=10
-    step=5
     modl='ay18'
-    pid='101comb'
+    pid='{}comb'.format(plid)
     wer='/tmp'
     for fod in range(0,30):
         for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
@@ -1251,19 +1252,20 @@ def main1():
 
 def main():
     """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
+    plid=501
+    tbin=10
+    step=5
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/101FHS120predictPWP105.d')
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-Pmag APWPs from Different Algorithms, versus HS Model Predicted APWP------
-    tbin=10		#18,10,2
-    step=5	#9,5,1
     modl='ay18'
-    pid='101comb'
+    pid='{}comb'.format(plid)
     wer='/tmp'
-    for mav in [4,5,6,7]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in range(6):  #[0,1,2,3,4,5]:
+    for mav in range(11,28):  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+        for wgt in range(1,6):  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
                         pnh=1)
