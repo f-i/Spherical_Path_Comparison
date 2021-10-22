@@ -1,9 +1,10 @@
 # Spherical_Path_Comparison
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
-measuring similarity of spherical paths, especially the paleomagnetic apparent
-polar wander paths (APWPs) of tectonic plates. It is powered by PmagPy
-(https://github.com/PmagPy/PmagPy) and GMT (http://gmt.soest.hawaii.edu/).
-Read on for more details here: https://github.com/f-i/APWP_similarity
+measuring similarity of spherical paths with spatial uncertainties, especially
+the paleomagnetic apparent polar wander paths (APWPs) of tectonic plates. It is
+powered by PmagPy (https://github.com/PmagPy/PmagPy) and GMT
+(https://www.generic-mapping-tools.org/). Read on for more details here:
+https://github.com/f-i/APWP_similarity
 
 ## How to Use
 Please use demo.ipynb (openable by Jupyter Notebook https://jupyter.org/) to
