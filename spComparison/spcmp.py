@@ -1,20 +1,20 @@
 #!/usr/bin/python3
 
-'''--------------------------------------------------------------------------###
+'''-------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 8Oct2019
+Modified on 24Oct2021
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.8.2
+@__version__	:	0.8.4
 @__license__	:	GNU General Public License v3.0
 
-Spherical Path Comparison (spComparison) Package is developed for quantitatively
+Spherical Path Comparison (spComparison) package is created for quantitatively
 measuring similarity of spherical paths, especially the paleomagnetic apparent
 polar wander paths (APWPs) of tectonic plates. It is powered by PmagPy
 (https://pmagpy.github.io/) and GMT (http://gmt.soest.hawaii.edu/).
-Copyright (C) 2016-2019 @__author__
+Copyright (C) 2016-2021 @__author__
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,17 +27,16 @@ PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program. If not, see <https://www.gnu.org/licenses/>.
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 Environment:
-    Python3.6/3.7 + NumPy1.16
-    GMT5 + *NIX(-like) Shell: Bash4/5 + bc1.06/1.07
---------------------------------------------------------------------------------
+    *NIX(-like) Bash Shell with "Python3, NumPy, GMT, bc" installed
+-------------------------------------------------------------------------------
 TODO:
     1. Tidy functions up into classes
-###--------------------------------------------------------------------------'''
+###-------------------------------------------------------------------------'''
 
-from os import makedirs,path
-from subprocess import Popen,PIPE
+from os import makedirs, path
+from subprocess import Popen, PIPE
 from random import random
 import re, numpy as np
 
@@ -46,6 +45,7 @@ PLATE_V_MAX_PAST=30  #according to Swanson-Hysell etal.2009, Kulakov etal.2014; 
 POL_WAND_DIR_DIF_MAX=180
 
 #Returns azimuth of geodesic ({0},{1}) to ({2},{3}) Source: @__author__, Oct2015
+#/home/g/Desktop/git/gpmdb/src/core/azi {0} {1} {2} {3}
 AZI="""
 gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'
 """
@@ -136,13 +136,13 @@ def wgs2cart(dis):
     '''converts list/array of vector poles (WGS84 coordinates), in degrees, to
     array of Cartesian coordinates, in -1 <= x,y <= 1
     Source: @__author__, Apr2018'''
-    ints=np.ones(len(dis)).transpose() #get an array of ones to plug into lon,lat pairs
+    ints=np.ones(len(dis)).transpose()  #get an array of ones to plug into lon,lat pairs
     _d_=np.array(dis)
     rad=np.pi/180.
-    if len(_d_.shape)>1: # array of vectors
+    if len(_d_.shape)>1:  # array of vectors
         lon,lat=(((_d_[:,0]-180)%360)-180)*rad,_d_[:,1]*rad  #make sure -180,180
-        if _d_.shape[1]==3: ints=_d_[:,2] #take the given lengths assigned in 3rd column in _d_
-    else: # single pole(lon,lat) vector
+        if _d_.shape[1]==3: ints=_d_[:,2]  #take the given lengths assigned in 3rd column in _d_
+    else:  # single pole(lon,lat) vector
         lon,lat=(((np.array(float(_d_[0]))-180)%360)-180)*rad,np.array(float(_d_[1]))*rad
         if len(_d_)==3: ints=np.array(_d_[2])
         else: ints=np.array([1.])
@@ -171,8 +171,9 @@ def ppf(fname,pnh=1):
     puc=(0,1,2,3,4,5,6,7)  #so far not using age range (8,9) yet
     pdt=[('dec','<f8'),('inc','<f8'),('age','<f2'),('dm','<f8'),('dp','<f8'),
          ('dm_azi','<f8'),('k','<f4'),('n','<i2'),('possib_loest_age','<f4'),
-         ('possib_hiest_age','<f4')] #f4:float32,f8:float64,i2:int16
-    return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
+         ('possib_hiest_age','<f4')]  #f4:float32,f8:float64,i2:i:int16
+    return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,
+                         skip_header=pnh)
 
 def ppf0(fname,pnh=0):
     """parse model-predicted path file, from ASCII data to numpy array
@@ -229,18 +230,18 @@ def ellipsenrmdev_1gen(lon,lat,azi,hma,hmi,dros=26,axis_unit=1):
         v_1,v_2=((hma/111.195051975)/1.96)**2,((hmi/111.195051975)/1.96)**2
     else: v_1,v_2=(hma/1.96)**2,(hmi/1.96)**2
     #cov: covariance matrix, which is diagonal
-    pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=dros) #to rotate the ellipse, multiply a matrix; read fig/gaussians.pdf (http://cs229.stanford.edu/section/gaussians.pdf)
+    pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=dros)  #to rotate the ellipse, multiply a matrix; read fig/gaussians.pdf (http://cs229.stanford.edu/section/gaussians.pdf)
     rnd=PMAGPY3().vector_mean(np.c_[pts,np.ones(dros)])[0][:2]
     rdl=run_sh(ASSIGN_AZI4ROTATED_ELLIP.format(lon,lat,rnd[0],rnd[1],azi))  #see more info from https://pyformat.info/
     rdloc=re.split(r'\t+',rdl.decode().rstrip('\n'))
     try: return float(rdloc[0]),float(rdloc[1])
-    except ValueError as err: print("error",err,"on rdloc",rdloc)	#used for debugging
+    except ValueError as err: print("error",err,"on rdloc",rdloc)  #used for debugging
 
 def elips_nrmdev_gen_n(lon,lat,azi,hma,hmi,siz=1000,axis_unit=1):
     """see more details in function ellipsenrmdev_1gen, the difference is here
     it's generating a certain number of random points
     Source: @__author__, Oct2016"""
-    if axis_unit==0:	#variance=sigma square
+    if axis_unit==0:  #variance=sigma square
         v_1,v_2=((hma/111.195051975)/1.96)**2,((hmi/111.195051975)/1.96)**2
     else: v_1,v_2=(hma/1.96)**2,(hmi/1.96)**2
     rlo,rla=[],[]
@@ -258,8 +259,8 @@ def elips_nrmdev_gen_n(lon,lat,azi,hma,hmi,siz=1000,axis_unit=1):
 
 def get_bounds(d_i):
     """Source: Chris Rowan, 2016"""
-    bounds=[] #2sigma bounds
-    cart=PMAGPY3().dir2cart(d_i).transpose() #convert to cartesian coordinates
+    bounds=[]  #2sigma bounds
+    cart=PMAGPY3().dir2cart(d_i).transpose()  #convert to cartesian coordinates
     mim=int(.025*len(cart[0]))
     mam=int(.975*len(cart[0]))
     for i in range(3):
@@ -272,8 +273,8 @@ def get_bounds2d(d_i):
     """For pole vectors (WGS84 coordinates). Note that the function 'get_bounds'
     is for declination/inclination vectors; Better not used for pole vectors.
     Source: @__author__, Apr2018"""
-    bounds=[] #2sigma bounds
-    cart=wgs2cart(d_i).transpose() #convert to cartesian coordinates
+    bounds=[]  #2sigma bounds
+    cart=wgs2cart(d_i).transpose()  #convert to cartesian coordinates
     mim=int(.025*len(cart[0]))
     mam=int(.975*len(cart[0]))
     for i in range(2):
@@ -301,7 +302,7 @@ def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     For N>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
     Source: @__author__ and Chris Rowan, 2016-Sep2019"""
     if po1['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age']))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age'])),encoding='UTF-8') as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
         bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
@@ -315,7 +316,7 @@ def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
                                        po1['dm'],po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age'])),encoding='UTF-8') as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
         bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
@@ -363,7 +364,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     this function is using 'get_bounds2d' func to more accurately process the
     bounds of random pole vectors                Source: @__author__, Apr2018"""
     if po1['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age']))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age'])),encoding='UTF-8') as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
         bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
@@ -377,7 +378,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
                                        po1['dm'],po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age']))) as _f_:
+        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age'])),encoding='UTF-8') as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
         bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
@@ -405,7 +406,7 @@ def common_dir_ellip1gen(point,folder='traj1'):
     void.                                Source: @__author__, Nov2017-Feb2018"""
     if point['n']>25:
         makedirs('/tmp/{0}'.format(folder),exist_ok=True)
-        with open('/tmp/{0}/{1}.txt'.format(folder,point['age'])) as _f_:
+        with open('/tmp/{0}/{1}.txt'.format(folder,point['age']),encoding='UTF-8') as _f_:
             d_l=[[s2f(x) for x in line.split()] for line in _f_]
         bdi=PMAGPY3().di_boot(d_l,nob=1)
         lon,lat=bdi[0][0],bdi[0][1]
@@ -692,7 +693,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
     n_row=min(len(ar1),len(ar2))
     lst=[]
     #print('00_no\t01_tstop\t10_spa_pol_dif\t11_spa_pol_tes\t20_ang_seg_dif\t21_ang_seg_tes\t30_len_seg_dif\t31_len_seg_tes\t22_course_seg1\t23_course_seg2\t32_len_seg1\t33_len_seg2')  #for ipynb demo
-    for i in range(0,n_row): # [17]
+    for i in range(n_row):  # [17]
         #ind,sgd=0,0
         ind,sgd=common_dir_elliptical(ar1[i],ar2[i],fn1=filname1,fn2=filname2)
         #store Nones in the row for the 1st pole, cuz for only the 1st pole, angle change, length and their dif have no meaning except only spacial dif
@@ -705,10 +706,10 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
         #store 2 angle changes, 1 ang dif, 2 lengths, 1 len dif of the 1st coeval segments in the row for the 2nd pole
         elif i==1:
             eta1,ds1=ang_len4_1st_seg(ar1[i-1]['dec'],ar1[i-1]['inc'],
-                                      ar1[i]['dec'],ar1[i]['inc']) #ds1/2 segment length for trj 1/2
+                                      ar1[i]['dec'],ar1[i]['inc'])  #ds1/2 segment length for trj 1/2
             eta2,ds2=ang_len4_1st_seg(ar2[i-1]['dec'],ar2[i-1]['inc'],
                                       ar2[i]['dec'],ar2[i]['inc'])
-            seg0a1=np.nan #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
+            seg0a1=np.nan  #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
             for _ in range(1000):  #1000
@@ -751,11 +752,11 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
                 lst_d_leh_a_ras.append(abs(ds1r-ds1))
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             #####################SAVE#TrajI#VS#TrajI#########START########
-            #i_i=open('/tmp/{0}i_i.d'.format(i),'w')
+            #i_i=open('/tmp/{0}i_i.d'.format(i),'w',encoding='UTF-8')
             #for j in lst_d_leh_a_ras: i_i.write("%s\n" % j)
             #i_i.close()  ########SAVE#TrajI#VS#TrajI##########END########
             #####################SAVE#TrajI#VS#TrajII########START########
-            #i_ii=open('/tmp/{0}i_ii.d'.format(i),'w')
+            #i_ii=open('/tmp/{0}i_ii.d'.format(i),'w',encoding='UTF-8')
             #for j in lst_d_leh_ras_rbs: i_ii.write("%s\n" % j)
             #i_ii.close()  #######SAVE#TrajI#VS#TrajII#########END########
             au_=np.percentile(lst_d_ang_a_ras,97.5)
@@ -811,7 +812,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
         #store 2 angle changes, 1 ang dif, 2 lengths, 1 len dif of the 1st coeval segments in the row for the 2nd pole
         elif i==1:
             eta1,ds1=ang_len4_1st_seg(ar1[i-1]['dec'],ar1[i-1]['inc'],
-                                      ar1[i]['dec'],ar1[i]['inc']) #ds1/2 segment length for trj 1/2
+                                      ar1[i]['dec'],ar1[i]['inc'])  #ds1/2 segment length for trj 1/2
             eta2,ds2=ang_len4_1st_seg(ar2[i-1]['dec'],ar2[i-1]['inc'],
                                       ar2[i]['dec'],ar2[i]['inc'])
             #ang option 1: directly assigned 0 so that 1st seg as a reference
@@ -823,7 +824,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             #                            ar1[i]['dec'],ar1[i]['inc'],
             #                            ar2[i-1]['dec'],ar2[i-1]['inc'],
             #                            ar2[i]['dec'],ar2[i]['inc'],filname1)
-            seg0a1=0 #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
+            seg0a1=0  #making the ang dif betw the 1st coeval seg pair always be 0, ie, dif not influenced by rotation models, and 2 paths don't need to be rotated into same frame
             leh=abs(ds1-ds2)  #------------------------i==1-START--------------#
             lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[]
             for _ in range(1000):
@@ -903,14 +904,13 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)  #------------------------i>=3-START--------------#
             lst_d_ang_a_ras,lst_d_ang_ras_rbs,lst_d_leh_a_ras,lst_d_leh_ras_rbs=[],[],[],[]
-            for _ in range(1000):
-            #for _ in range(2):  #for only wanting to see the d_angular
+            for _ in range(1000):  #for _ in range(2):  #for only wanting to see the d_angular
                 a1x,a1y=common_dir_ellip1gen(ar1[i-1],folder=filname1)
                 b1x,b1y=common_dir_ellip1gen(ar2[i-1],folder=filname2)
                 #if fails, run through the failed iteration of the loop again
                 while True:
                     try:
-                        a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1) #resample a2x,a2y for saving time; can resample both a1(x,y) and a2
+                        a2x,a2y=common_dir_ellip1gen(ar1[i],folder=filname1)  #resample a2x,a2y for saving time; can resample both a1(x,y) and a2
                         eta1r,ds1r=ang_len4ge3rd_seg(ar1[0]['dec'],ar1[0]['inc'],
                                                      ar1[1]['dec'],ar1[1]['inc'],
                                                      a1x,a1y,a2x,a2y,tt1,filname1)
@@ -986,7 +986,8 @@ def fit_quality(trj1,trj2,rtn_grd=1):
     elif 1.5<=sc2<2.5: sy2,sy_2='B',2
     elif 2.5<=sc2<3.5: sy2,sy_2='C',1
     else: sy2,sy_2='D',0
-    if rtn_grd==1: return sy1,sy2
+    if rtn_grd==0: return sc1,sc2
+    elif rtn_grd==1: return sy1,sy2
     else: return sy_1,sy_2
 
 def run_sh(script,stdin=None):
@@ -995,12 +996,12 @@ def run_sh(script,stdin=None):
     #Note: by using a list here (['bash', ...]) we avoid quoting issues, as the
     #arguments are passed in exactly this order (spaces, quotes, and newlines
     #won't cause problems):
-    proc=Popen(['bash','-c',script],stdout=PIPE,stderr=PIPE,stdin=PIPE)
-    stdout,stderr=proc.communicate()
-    if proc.returncode:
-        raise ScriptException(proc.returncode,stdout,stderr,script)
-    del stdin
-    return stdout
+    with Popen(['bash','-c',script],stdout=PIPE,stderr=PIPE,stdin=PIPE) as proc:
+        stdout,stderr=proc.communicate()
+        if proc.returncode:
+            raise ScriptException(proc.returncode,stdout,stderr,script)
+        del stdin
+        return stdout
 
 class ScriptException(Exception):
     """Source: http://stackoverflow.com/questions/2651874/embed-bash-in-python
@@ -1021,30 +1022,32 @@ def ppf3(fname,pnh=1):
          ('31_len_seg_tes','<i1')]
     return np.genfromtxt(fname,delimiter=pdl,usecols=puc,dtype=pdt,skip_header=pnh)
 
-def calc(pair,n_o,t_0=0,t_1=530,oldform=1):
+def calc(pair,anystr,t_0=0,t_1=530,oldform=1):
     """Prints difference measurements multiply test result 0 or 1; For t_0 != 0,
     d_a should be based on a new beginning seg
-    pair: a numpy array; n_o: user-input index; t_0: beginning point's age;
+    pair: a numpy array; anystr: user string inputs; t_0: beginning point's age;
     t_1: end point's age; if oldform is 1, d_s is defined as dsicribed in the
     paper, else defined as fraction of n coeval pole pairs that are
     statistically distinguishable from each other
     Source: @__author__, Jun2018"""
     tmp=pair[(pair[:]['01_tstop']<=t_1) & (pair[:]['01_tstop']>=t_0)]
-    d_s=(tmp[:]['10_spa_pol_dif']*tmp[:]['11_spa_pol_tes']).sum()/(50*tmp[:]['10_spa_pol_dif'].size) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/tmp[:]['10_spa_pol_dif'].size
-    d_a=(tmp[2:]['20_ang_seg_dif']*tmp[2:]['21_ang_seg_tes']).sum()/(180*(tmp[:]['10_spa_pol_dif'].size-2))
+    siz=tmp[:]['10_spa_pol_dif'].size
+    d_s=(tmp[:]['10_spa_pol_dif']*tmp[:]['11_spa_pol_tes']).sum()/(50*siz) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/siz
+    d_a=(tmp[2:]['20_ang_seg_dif']*tmp[2:]['21_ang_seg_tes']).sum()/(180*(siz-2))
     #30cm/yr is about 2.697961777 degree/myr
     d_l=(tmp[1:]['30_len_seg_dif']*tmp[1:]['31_len_seg_tes']).sum()/(2.697961777*(tmp[:]['01_tstop'].max()-tmp[:]['01_tstop'].min()))
-    print(f'{d_s:g}\t{d_a:g}\t{d_l:g}\t{n_o:s}\t{t_0:g}\t{t_1:g}\t{(d_s+d_a+d_l)/3.:g}',
-          end="\t")
+    print(f'{d_s:g}\t{d_a:g}\t{d_l:g}\t{anystr:s}\t{t_0:g}\t{t_1:g}\t{(d_s+d_a+d_l)/3.:g}\t{siz:d}',
+          end="\n")
 
-def calc_nt(pair,n_o,t_0=0,t_1=530,oldform=1):
+def calc_nt(pair,anystr,t_0=0,t_1=530,oldform=1):
     """Derived from the function 'calc'; Prints difference measurements without
     test influencing                             Source: @__author__, Jun2018"""
     tmp=pair[(pair[:]['01_tstop']<=t_1) & (pair[:]['01_tstop']>=t_0)]
-    d_s=(tmp[:]['10_spa_pol_dif']).sum()/(50*tmp[:]['10_spa_pol_dif'].size) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/tmp[:]['10_spa_pol_dif'].size
-    d_a=tmp[2:]['20_ang_seg_dif'].sum()/(180*(tmp[:]['10_spa_pol_dif'].size-2))
+    siz=tmp[:]['10_spa_pol_dif'].size
+    d_s=(tmp[:]['10_spa_pol_dif']).sum()/(50*siz) if oldform==1 else tmp[:]['11_spa_pol_tes'].sum()/siz
+    d_a=tmp[2:]['20_ang_seg_dif'].sum()/(180*(siz-2))
     d_l=(tmp[1:]['30_len_seg_dif']).sum()/(2.697961777*(tmp[:]['01_tstop'].max()-tmp[:]['01_tstop'].min()))
-    print(f'{d_s:g}\t{d_a:g}\t{d_l:g}\t{n_o:s}\t{t_0:g}\t{t_1:g}\t{(d_s+d_a+d_l)/3.:g}')
+    print(f'{d_s:g}\t{d_a:g}\t{d_l:g}\t{anystr:s}\t{t_0:g}\t{t_1:g}\t{(d_s+d_a+d_l)/3.:g}\t{siz:d}')
 
 
 class PMAGPY3():
@@ -1058,13 +1061,13 @@ class PMAGPY3():
     def dir2cart(dis):
         '''converts list/array of vector directions, in degrees, to array of
         Cartesian coordinates, in x,y,z             Source: pmag.py of PmagPy'''
-        ints=np.ones(len(dis)).transpose() #get an array of ones to plug into dec,inc pairs
+        ints=np.ones(len(dis)).transpose()  #get an array of ones to plug into dec,inc pairs
         _d_=np.array(dis)
         rad=np.pi/180.
-        if len(_d_.shape)>1: # array of vectors
+        if len(_d_.shape)>1:  # array of vectors
             decs,incs=_d_[:,0]*rad,_d_[:,1]*rad
-            if _d_.shape[1]==3: ints=_d_[:,2] #take the given lengths assigned in 3rd column in _d_
-        else: # single vector
+            if _d_.shape[1]==3: ints=_d_[:,2]  #take the given lengths assigned in 3rd column in _d_
+        else:  #single vector
             decs,incs=np.array(float(_d_[0]))*rad,np.array(float(_d_[1]))*rad
             if len(_d_)==3: ints=np.array(_d_[2])
             else: ints=np.array([1.])
@@ -1077,26 +1080,26 @@ class PMAGPY3():
         """converts a direction to Cartesian coordinates, takes an array of
         [x,y,z])                                    Source: pmag.py of PmagPy"""
         cart=np.array(cart)
-        rad=np.pi/180. # constant to convert degrees to radians
+        rad=np.pi/180.  #constant to convert degrees to radians
         if len(cart.shape)>1: x_s,y_s,z_s=cart[:,0],cart[:,1],cart[:,2]
-        else: x_s,y_s,z_s=cart[0],cart[1],cart[2] #single vector
-        r_s=np.sqrt(x_s**2+y_s**2+z_s**2) # calculate resultant vector length
-        decs=(np.arctan2(y_s,x_s)/rad)%360. # calculate declination taking care of correct quadrants (arctan2) and making modulo 360.
-        try: incs=np.arcsin(z_s/r_s)/rad # calculate inclination (converting to degrees)
+        else: x_s,y_s,z_s=cart[0],cart[1],cart[2]  #single vector
+        r_s=np.sqrt(x_s**2+y_s**2+z_s**2)  #calculate resultant vector length
+        decs=(np.arctan2(y_s,x_s)/rad)%360.  #calculate declination taking care of correct quadrants (arctan2) and making modulo 360.
+        try: incs=np.arcsin(z_s/r_s)/rad  #calculate inclination (converting to degrees)
         except ZeroDivisionError:
             print("Error: division by 0. z_s is {0}, r_s is {1}".format(z_s,r_s))  # r_s=0
             return np.zeros(3)
         if incs==np.nan:
             print("z_s {0} > r_s {1}, arcsin value does not exist!".format(z_s,r_s))
             return np.zeros(3)
-        return np.array([decs,incs,r_s]).transpose() # return the directions list
+        return np.array([decs,incs,r_s]).transpose()  #return the directions list
 
     def fisher_mean(self,data):
         """Source: pmag.py of PmagPy
         Used enumerate instead of range+len by @__author__, 2017"""
         #calculates fisher parameters for data
         xbar,fpars=[0,0,0],{}
-        _n_=len(data) #origianl code line, mainly for many directions, i.e. dec,inc
+        _n_=len(data)  #origianl code line, mainly for many directions, i.e. dec,inc
         if _n_<2: return fpars
         _x_=self.dir2cart(data)
         #for rec in data: _x_.append(dir2cart([rec[0],rec[1],1.]))
@@ -1116,7 +1119,7 @@ class PMAGPY3():
         #fpars["a"]=_a_  #check _a_
         if _a_<-1: _a_=-1
         a95=np.arccos(_a_)*180./np.pi
-        fpars["alpha95"],fpars["csd"]=a95,csd #estimated angular standard deviation, CSD
+        fpars["alpha95"],fpars["csd"]=a95,csd  #estimated angular standard deviation, CSD
         if _a_<0: fpars["alpha95"]=180.  #alpha95 is radius, not diameter
         return fpars
 
@@ -1126,13 +1129,13 @@ class PMAGPY3():
         [[Dec1,Inc1],[Dec2,Inc2],etc.]                 Source: pmag.py of PmagPy
         Modified a bit in style by @__author__, 2017"""
         d_1,d_2=np.array(d_1),np.array(d_2)
-        d_1=d_1[:,0:2] if len(d_1.shape)>1 else d_1[:2]	# strip off intensity
-        d_2=d_2[:,0:2] if len(d_2.shape)>1 else d_2[:2]	# strip off intensity
-        x_1,x_2=self.dir2cart(d_1),self.dir2cart(d_2) # convert to cartesian from polar
-        angles=[] # set up a list for angles
-        for k in range(x_1.shape[0]): # single vector
-            angles.append((np.arccos(np.dot(x_1[k],x_2[k]))*180./np.pi)%360.) # take the dot product
-        return np.array(angles) #returns in arc degree, not radian
+        d_1=d_1[:,0:2] if len(d_1.shape)>1 else d_1[:2]  #strip off intensity
+        d_2=d_2[:,0:2] if len(d_2.shape)>1 else d_2[:2]  #strip off intensity
+        x_1,x_2=self.dir2cart(d_1),self.dir2cart(d_2)  #convert to cartesian from polar
+        angles=[]  #set up a list for angles
+        for k in range(x_1.shape[0]):  #single vector
+            angles.append((np.arccos(np.dot(x_1[k],x_2[k]))*180./np.pi)%360.)  #take the dot product
+        return np.array(angles)  #returns in arc degree, not radian
 
     @staticmethod
     def pseudo(dis):
@@ -1146,10 +1149,10 @@ class PMAGPY3():
         #fpars=self.fisher_mean(dis)  #get average DI for whole dataset
         #now do bootstrap to collect d_i bootstrap means
         d_i=[]  # list of bootstrap directions
-        for _ in range(nob): # repeat nob (number of bootstraps) times
+        for _ in range(nob):  #repeat nob (number of bootstraps) times
             #if k%50==0: print(k,' out of ',nob)
-            pdis=self.pseudo(dis) # get a pseudosample
-            bfpars=self.fisher_mean(pdis) # get bootstrap mean bootstrap sample
+            pdis=self.pseudo(dis)  #get a pseudosample
+            bfpars=self.fisher_mean(pdis)  #get bootstrap mean bootstrap sample
             d_i.append([bfpars['dec'],bfpars['inc']])
         return d_i
 
@@ -1157,8 +1160,8 @@ class PMAGPY3():
         """rotates dec,inc into geographic coordinates using azi,plg as azimuth
         and plunge of _x_ direction                    Source: pmag.py of PmagPy
         Modified a bit in style by @__author__, 2017"""
-        dir_=[dec,inc,1.] #put dec inc in direction list and set length to unity
-        _x_=self.dir2cart(dir_) # get cartesian coordinates
+        dir_=[dec,inc,1.]  #put dec inc in direction list and set length to unity
+        _x_=self.dir2cart(dir_)  #get cartesian coordinates
         # set up rotation matrix
         a_1,a_2,a_3=self.dir2cart([azi,plg,1.]),self.dir2cart([azi+90.,0,1.]),self.dir2cart([azi-180.,90.-plg,1.])
         # do rotation
@@ -1210,17 +1213,17 @@ def main1():
     tbin=10
     step=5
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
+    modl_pp=ppf0('/home/i/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
     modl='ay18'
     pid='{}comb'.format(plid)
-    wer='/tmp'
-    for fod in range(0,30):
-        for mav in [4]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-            for wgt in [0]:  #[0,1,2,3,4,5]:
+    wer='/mnt/g/tmp/Fay18_101comb_10_5_1_2/_4/New'
+    for fod in range(57,200):
+        for mav in [1]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+            for wgt in [2]:  #[0,1,2,3,4,5]:
                 pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
                                                                                      step,mav,wgt),
                             pnh=1)
@@ -1253,8 +1256,8 @@ def main1():
 def main():
     """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
     plid=501
-    tbin=10
-    step=5
+    tbin=2
+    step=1
     #-------------Prepare Model Predicted APWP----------------------------------
     modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
     modl_pp[:]['dm']/=111.195051975
@@ -1264,8 +1267,8 @@ def main():
     modl='ay18'
     pid='{}comb'.format(plid)
     wer='/tmp'
-    for mav in range(11,28):  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
-        for wgt in range(1,6):  #[0,1,2,3,4,5]:
+    for mav in range(1,2):  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
+        for wgt in range(4,6):  #[0,1,2,3,4,5]:
             pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
                                                                          step,mav,wgt),
                         pnh=1)
@@ -1298,16 +1301,17 @@ def main():
 def main_fq():
     """Calculate Fit Quality scores for the 168 pairs of pmag path vs. modeled
     path"""
+    plid=501
+    tbin=10
+    step=5
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/801FHS120predictPWP2010.d')
+    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-Pmag APWPs from Different Algorithms, versus HS Model Predicted APWP------
-    tbin=20
-    step=10
     modl='ay18'
-    pid='801comb'
+    pid='{}comb'.format(plid)
     wer='/tmp'
     for mav in range(28):  #[17]:
         for wgt in range(6):  #[4]:
@@ -1487,19 +1491,19 @@ def test():
 142.8000031	83.	1	2
 """
 
-    apwp1=open('/tmp/1.d','w')
-    apwp1.write(pwp1)
-    apwp1.close()
-    apwp2=open('/tmp/2.d','w')
-    apwp2.write(pwp2)
-    apwp2.close()
+    with open('/tmp/1.d','w',encoding='UTF-8') as apwp1:
+        apwp1.write(pwp1)
+        apwp1.close()
+    with open('/tmp/2.d','w',encoding='UTF-8') as apwp2:
+        apwp2.write(pwp2)
+        apwp2.close()
     makedirs('/tmp/1',exist_ok=True)
-    apwp1_0=open('/tmp/1/0.txt','w')
-    apwp1_0.write(pwp1_0ma)
-    apwp1_0.close()
-    apwp1_5=open('/tmp/1/5.txt','w')
-    apwp1_5.write(pwp1_5ma)
-    apwp1_5.close()
+    with open('/tmp/1/0.txt','w',encoding='UTF-8') as apwp1_0:
+        apwp1_0.write(pwp1_0ma)
+        apwp1_0.close()
+    with open('/tmp/1/5.txt','w',encoding='UTF-8') as apwp1_5:
+        apwp1_5.write(pwp1_5ma)
+        apwp1_5.close()
 
     diff=spa_angpre_len_dif('/tmp/1.d','/tmp/2.d')
     print(diff)
