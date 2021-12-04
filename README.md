@@ -1,6 +1,6 @@
 # Spherical_Path_Comparison
 Spherical Path Comparison (spComparison) Package is developed for quantitatively
-measuring similarity of spherical paths with spatial uncertainties, especially
+measuring similarity of spherical paths with spatial uncertainties, particularly
 the paleomagnetic apparent polar wander paths (APWPs) of tectonic plates. It is
 powered by PmagPy (https://github.com/PmagPy/PmagPy) and GMT
 (https://www.generic-mapping-tools.org/). Read on for more details here:
@@ -21,7 +21,7 @@ function "spa_ang1st_len_dif" was actually the difference between each seg and
 always the 1st seg. However, after seeing the calculated results we realized
 that the definition of the difference between each seg and the 1st seg is far
 more complicated than expected in terms of spherical surface geometry,
-especially for those seg far from the 1st seg. Because of this complexity,
+particularly for those seg far from the 1st seg. Because of this complexity,
 another disadvantage of this function is its long calculating time, which is
 about 5 times of the time the presently used solution (spa_angpre_len_dif)
 consumes. The calculation for seg angle difference in the function
