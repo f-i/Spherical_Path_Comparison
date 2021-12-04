@@ -11,7 +11,7 @@ Modified on 24Oct2021
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) package is created for quantitatively
-measuring similarity of spherical paths, especially the paleomagnetic apparent
+measuring similarity of spherical paths, particularly the paleomagnetic apparent
 polar wander paths (APWPs) of tectonic plates. It is powered by PmagPy
 (https://pmagpy.github.io/) and GMT (http://gmt.soest.hawaii.edu/).
 Copyright (C) 2016-2021 @__author__
