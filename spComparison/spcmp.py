@@ -52,7 +52,7 @@ gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'
 
 #Returns absolute value of (({0}-{1}) % 360)        Source: @__author__, Jan2016
 SMALLER_ANGLE_REMAINDER="""
-gmt math -Q {0} {1} SUB 360 FMOD ABS =
+bc <<< "define abs(n) { if ( n > 0 ) return (n); { return (-n); } } abs(({0} - {1}) % 360)"
 """
 
 #Returns one sample within error ellipse of pole (location ({0},{1}), azimuth of
@@ -122,7 +122,7 @@ az1=`gmt mapproject -Af{0}/{1} -fg -o2 <<< '{2} {3}'`
 az2=`gmt mapproject -Af{0}/{1} -fg -o2 <<< '{4} {5}'`
 a1=`gmt math -Q $az1 360 FMOD -fx --FORMAT_GEO_OUT=D =`
 a2=`gmt math -Q $az2 360 FMOD -fx --FORMAT_GEO_OUT=D =`
-tst=`gmt math -Q $a1 $a2 SUB ABS =`
+tst=`echo "define abs(n) { if ( n > 0 ) return (n); { return (-n); } } abs($a1 - $a2)" | bc -l`
 echo $tst
 """
 
