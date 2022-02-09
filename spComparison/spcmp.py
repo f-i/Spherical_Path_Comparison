@@ -2,12 +2,12 @@
 
 '''-------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 24Oct2021
+Modified on 9Feb2022
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.8.4
+@__version__	:	0.8.5
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) package is created for quantitatively
@@ -72,7 +72,7 @@ p=`gmt fitcircle <<! -L1 -Fn -fg |gmt math STDIN -N3 -C2 $angle ADD --IO_COL_SEP
 !`
 fi
 az1=`gmt mapproject -Af{0}/{1} -fg -o2 <<< $(echo "1 0" |gmt backtracker -E$p -o0,1)`
-dir_ex=`gmt math -Q $az1 {4} SUB =`
+dir_ex=`echo $az1 - {4} | bc -l`
 echo "{2} {3}" |gmt backtracker -E$p -o0,1 |gmt backtracker -E{0}/{1}/$dir_ex -o0,1
 """
 
@@ -93,7 +93,7 @@ p=`gmt fitcircle <<! -L1 -Fn -fg |gmt math STDIN -N3 -C2 $agl ADD --IO_COL_SEPAR
 !`
 fi
 az1=`gmt mapproject -Af{0}/{1} -fg -o2 <<< $(echo "1 0" |gmt backtracker -E$p -o0,1)`
-dir_ex=`gmt math -Q $az1 {4} SUB =`
+dir_ex=`echo $az1 - {4} | bc -l`
 echo "{2}" |tr -s ' '  '\n' |sed 's/\(\[\|\]\)//g;/^[[:space:]]*$/d' >/tmp/tmp1.d
 echo "{3}" |tr -s ' '  '\n' |sed 's/\(\[\|\]\)//g;/^[[:space:]]*$/d' >/tmp/tmp2.d
 paste /tmp/tmp1.d /tmp/tmp2.d |gmt backtracker -E$p -o0,1 |gmt backtracker -E{0}/{1}/$dir_ex -o0,1
@@ -129,7 +129,7 @@ echo $tst
 #Source: @__author__, Jan2018
 POINT_AHEAD_GEODESIC="""
 gcd=`gmt vector -S{0}/{1} -TD -fg <<< "{2} {3}" | gmt math STDIN CEIL 10 ADD =`
-gmt project -C{0}/{1} -E{2}/{3} -G1 -L$gcd/`gmt math -Q 1 $gcd ADD =` | head -n1 |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
+gmt project -C{0}/{1} -E{2}/{3} -G1 -L$gcd/`echo 1 + $gcd | bc -l` | head -n1 |gmt math STDIN -o0,1 --IO_COL_SEPARATOR="	" =
 """
 
 def wgs2cart(dis):
