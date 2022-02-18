@@ -2,12 +2,12 @@
 
 '''-------------------------------------------------------------------------###
 Created on 5May2016
-Modified on 9Feb2022
+Modified on 18Feb2022
 
 @__author__	:	Chenjian Fu
 @__email__	:	cfu3@kent.edu
 @__purpose__	:	To quantitatively compare paleomagnetic APWPs
-@__version__	:	0.8.5
+@__version__	:	0.8.6
 @__license__	:	GNU General Public License v3.0
 
 Spherical Path Comparison (spComparison) package is created for quantitatively
@@ -222,7 +222,7 @@ def ellipsenrmdev_1gen(lon,lat,azi,hma,hmi,dros=26,axis_unit=1):
     """originate random points around (0,0) on 2D plane, then rotate (0,0) with
     all these points to a specified location (lon,lat) on Earth for modeling 3D
     spherical surface ellipse; hma/hmi MUST be RADIUS (half of DIAMETER);
-    azimuth's unit can be switched by axis_unit (0: have hma,hmi in kilometer;
+    azimuth's unit can be switched by axis_unit (have hma,hmi in 0: kilometer;
     1: degree). Note that alpha95 derived from fisher_mean, or dp/dm, is radius,
     not diameter (Chp6, Butler98)                   Source: @__author__, 2016"""
     #sigma: population standard deviation (SD); square of sigma: population variance (e.g. v_1, v_2); length of semi-m[aj/in]or axis = 1.96 SDs
@@ -235,7 +235,9 @@ def ellipsenrmdev_1gen(lon,lat,azi,hma,hmi,dros=26,axis_unit=1):
     rdl=run_sh(ASSIGN_AZI4ROTATED_ELLIP.format(lon,lat,rnd[0],rnd[1],azi))  #see more info from https://pyformat.info/
     rdloc=re.split(r'\t+',rdl.decode().rstrip('\n'))
     try: return float(rdloc[0]),float(rdloc[1])
-    except ValueError as err: print("error",err,"on rdloc",rdloc)  #used for debugging
+    except ValueError as err:
+        print("error",err,"on rdloc",rdloc)  #used for debugging
+        return err,rdloc
 
 def elips_nrmdev_gen_n(lon,lat,azi,hma,hmi,siz=1000,axis_unit=1):
     """see more details in function ellipsenrmdev_1gen, the difference is here
@@ -248,8 +250,8 @@ def elips_nrmdev_gen_n(lon,lat,azi,hma,hmi,siz=1000,axis_unit=1):
     for _ in range(siz):
         pts=np.random.multivariate_normal(mean=(0,0),cov=[[v_1,0],[0,v_2]],size=26)  #be careful when size is larger than 2738, https://stackoverflow.com/questions/52587499/possible-random-multivariate-normal-bug-when-size-is-too-large
         #if siz>500:
-        #    np.savetxt("/tmp/{}.txt".format(str(siz)),pts,fmt='%.9g',delimiter=',')
-        #    pts=np.genfromtxt("/tmp/{}.txt".format(str(siz)),delimiter=',')
+        #    np.savetxt(f"/tmp/{str(siz)}.txt",pts,fmt='%.9g',delimiter=',')
+        #    pts=np.genfromtxt(f"/tmp/{str(siz)}.txt",delimiter=',')
         rmd=PMAGPY3().vector_mean(np.c_[pts,np.ones(26)])[0][:2]
         rlo.append(rmd[0])
         rla.append(rmd[1])
@@ -302,7 +304,7 @@ def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     For N>25, prepare raw paleopoles beforehand in specified dir, e.g. /tmp/
     Source: @__author__ and Chris Rowan, 2016-Sep2019"""
     if po1['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age'])),encoding='UTF-8') as _f_:
+        with open(f"/tmp/{str(fn1):s}/{str(po1['age']):s}.txt",encoding='UTF-8') as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
         bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
@@ -316,7 +318,7 @@ def common_dir_elliptical(po1,po2,boots=1000,fn1='file1',fn2='file2'):
                                        po1['dm'],po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age'])),encoding='UTF-8') as _f_:
+        with open(f"/tmp/{str(fn2):s}/{str(po2['age']):s}.txt",encoding='UTF-8') as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
         bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
@@ -364,7 +366,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
     this function is using 'get_bounds2d' func to more accurately process the
     bounds of random pole vectors                Source: @__author__, Apr2018"""
     if po1['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn1),str(po1['age'])),encoding='UTF-8') as _f_:
+        with open(f"/tmp/{str(fn1):s}/{str(po1['age']):s}.txt",encoding='UTF-8') as _f_:
             da1=[[s2f(x) for x in line.split()] for line in _f_]
         bdi1=PMAGPY3().di_boot(da1)
     elif po1['n']<=25 and po1['n']>1:
@@ -378,7 +380,7 @@ def common_dir_elliptica_(po1,po2,boots=1000,fn1='file1',fn2='file2'):
                                        po1['dm'],po1['dp'])
         bdi1=list(zip(lons1,lats1))
     if po2['n']>25:
-        with open('/tmp/{:s}/{:s}.txt'.format(str(fn2),str(po2['age'])),encoding='UTF-8') as _f_:
+        with open(f"/tmp/{str(fn2):s}/{str(po2['age']):s}.txt",encoding='UTF-8') as _f_:
             da2=[[s2f(x) for x in line.split()] for line in _f_]
         bdi2=PMAGPY3().di_boot(da2)
     elif po2['n']<=25 and po2['n']>1:
@@ -405,8 +407,8 @@ def common_dir_ellip1gen(point,folder='traj1'):
     pole's error ellipse; derived from func 'common_dir_elliptical' for numpy
     void.                                Source: @__author__, Nov2017-Feb2018"""
     if point['n']>25:
-        makedirs('/tmp/{0}'.format(folder),exist_ok=True)
-        with open('/tmp/{0}/{1}.txt'.format(folder,point['age']),encoding='UTF-8') as _f_:
+        makedirs(f'/tmp/{folder}',exist_ok=True)
+        with open(f"/tmp/{folder}/{point['age']}.txt",encoding='UTF-8') as _f_:
             d_l=[[s2f(x) for x in line.split()] for line in _f_]
         bdi=PMAGPY3().di_boot(d_l,nob=1)
         lon,lat=bdi[0][0],bdi[0][1]
@@ -581,7 +583,7 @@ def shape_dif_course(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
     divisor_a=180.*(n_row-1)
     #Qi16 functions might referred to Su15
     print(w_a*accum_seg_a/divisor_a + (1.-w_s-w_a)*accum_seg_l/divisor_l)
-    print('Attn: For total dif, weights Ws & Wa are {} and {} repectively'.format(w_s,w_a))
+    print(f'Attn: For total dif, weights Ws & Wa are {w_s} and {w_a} repectively')
     return structured_array(lst,['00_no','20_ang_seg_dif','22_course_seg1',
                                  '23_course_seg2','24_ang_seg_dif_accum',
                                  '25_ang_seg_dif_dt_accum','30_len_seg_dif',
@@ -659,7 +661,7 @@ def shape_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',whole='n',pnh1=1,pnh2=0)
                     mean_seg_l,format(d_shp,'.7f').rstrip('0') if d_shp<.1 else d_shp))
     if whole=='y': return d_shp,s_a,s_l
     else:
-        print('Attn: For shape dif, weights Ws & Wl are {} and {} repectively'.format(w_a,w_l))
+        print(f'Attn: For shape dif, weights Ws & Wl are {w_a} and {w_l} repectively')
         return structured_array(lst,['00_no','01_tstop','20_ang_seg_dif',
                                      '22_course_seg1','23_course_seg2',
                                      '24_ang_seg_dif_accum',
@@ -752,11 +754,11 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
                 lst_d_leh_a_ras.append(abs(ds1r-ds1))
                 lst_d_leh_ras_rbs.append(abs(ds2r-ds1r))
             #####################SAVE#TrajI#VS#TrajI#########START########
-            #i_i=open('/tmp/{0}i_i.d'.format(i),'w',encoding='UTF-8')
+            #i_i=open(f'/tmp/{i}i_i.d','w',encoding='UTF-8')
             #for j in lst_d_leh_a_ras: i_i.write("%s\n" % j)
             #i_i.close()  ########SAVE#TrajI#VS#TrajI##########END########
             #####################SAVE#TrajI#VS#TrajII########START########
-            #i_ii=open('/tmp/{0}i_ii.d'.format(i),'w',encoding='UTF-8')
+            #i_ii=open(f'/tmp/{i}i_ii.d','w',encoding='UTF-8')
             #for j in lst_d_leh_ras_rbs: i_ii.write("%s\n" % j)
             #i_ii.close()  #######SAVE#TrajI#VS#TrajII#########END########
             au_=np.percentile(lst_d_ang_a_ras,97.5)
@@ -771,8 +773,7 @@ def spa_angpre_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0,d
             tt1,tt2=eta1,eta2
         #cuz so far synchronized ages for 2 APWPs are required, so ar2[i]['age'] is also ok
         lst.append((i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
-        print("{0}\t{1:g}\t{2:.9g}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,
-                                                                                          seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+        print(f"{i}\t{ar1[i]['age']:g}\t{sgd:.9g}\t{ind}\t{seg_d_a}\t{seg0a1}\t{seg_d_l}\t{seg0l1}\t{eta1}\t{eta2}\t{ds1}\t{ds2}")
     return structured_array(lst,['00_no','01_tstop','10_spa_pol_dif',
                                  '11_spa_pol_tes','20_ang_seg_dif',
                                  '21_ang_seg_tes','30_len_seg_dif',
@@ -885,8 +886,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                                                ar1[1]['inc'],ar1[i-1]['dec'],ar1[i-1]['inc'],
                                                ar1[i]['dec'],ar1[i]['inc'],tt1,filname1)
                 except (UnboundLocalError,IndexError):
-                    print("No intersection of trj1 {0} 1st seg {1},{2}-{3},{4} and {5}th seg {6},{7}-{8},{9} found".format(filname1,ar1[0]['dec'],ar1[0]['inc'],ar1[1]['dec'],ar1[1]['inc'],
-                                                                                                                           i,ar1[i-1]['dec'],ar1[i-1]['inc'],ar1[i]['dec'],ar1[i]['inc']))  #if fail, report
+                    print(f"No intersection of trj1 {filname1} 1st seg {ar1[0]['dec']},{ar1[0]['inc']}-{ar1[1]['dec']},{ar1[1]['inc']} and {i}th seg {ar1[i-1]['dec']},{ar1[i-1]['inc']}-{ar1[i]['dec']},{ar1[i]['inc']} found")  #if fail, report
                     break
             if i==3 and ar2[2]['dec']==ar2[1]['dec'] and ar2[2]['inc']==ar2[1]['inc']:
                 eta2,ds2=ang_len4_2nd_seg(ar2[0]['dec'],ar2[0]['inc'],
@@ -898,8 +898,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
                                                ar2[1]['inc'],ar2[i-1]['dec'],ar2[i-1]['inc'],
                                                ar2[i]['dec'],ar2[i]['inc'],tt2,filname2)
                 except (UnboundLocalError,IndexError):
-                    print("No intersection of trj2 {0} 1st seg {1},{2}-{3},{4} and {5}th seg {6},{7}-{8},{9} found".format(filname2,ar2[0]['dec'],ar2[0]['inc'],ar2[1]['dec'],ar2[1]['inc'],
-                                                                                                                           i,ar2[i-1]['dec'],ar2[i-1]['inc'],ar2[i]['dec'],ar2[i]['inc']))  #if fail, report
+                    print(f"No intersection of trj2 {filname2} 1st seg {ar2[0]['dec']},{ar2[0]['inc']}-{ar2[1]['dec']},{ar2[1]['inc']} and {i}th seg {ar2[i-1]['dec']},{ar2[i-1]['inc']}-{ar2[i]['dec']},{ar2[i]['inc']} found")  #if fail, report
                     break
             ang=360-abs(eta2-eta1) if abs(eta2-eta1)>180 else abs(eta2-eta1)
             leh=abs(ds1-ds2)  #------------------------i>=3-START--------------#
@@ -938,7 +937,7 @@ def spa_ang1st_len_dif(trj1,trj2,fmt1='textfile',fmt2='textfile',pnh1=1,pnh2=0):
             seg_d_l=format(leh,'.7f').rstrip('0') if leh<.1 else leh
             tt1,tt2=eta1,eta2
         lst.append((i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
-        print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\t{7}\t{8}\t{9}\t{10}\t{11}".format(i,ar1[i]['age'],sgd,ind,seg_d_a,seg0a1,seg_d_l,seg0l1,eta1,eta2,ds1,ds2))
+        print(f"{i}\t{ar1[i]['age']}\t{sgd}\t{ind}\t{seg_d_a}\t{seg0a1}\t{seg_d_l}\t{seg0l1}\t{eta1}\t{eta2}\t{ds1}\t{ds2}")
     return structured_array(lst,['00_no','01_tstop','10_spa_pol_dif',
                                  '11_spa_pol_tes','20_ang_seg_dif',
                                  '21_ang_seg_tes','30_len_seg_dif',
@@ -1087,10 +1086,10 @@ class PMAGPY3():
         decs=(np.arctan2(y_s,x_s)/rad)%360.  #calculate declination taking care of correct quadrants (arctan2) and making modulo 360.
         try: incs=np.arcsin(z_s/r_s)/rad  #calculate inclination (converting to degrees)
         except ZeroDivisionError:
-            print("Error: division by 0. z_s is {0}, r_s is {1}".format(z_s,r_s))  # r_s=0
+            print(f"Error: division by 0. z_s is {z_s}, r_s is {r_s}")  # r_s=0
             return np.zeros(3)
         if incs==np.nan:
-            print("z_s {0} > r_s {1}, arcsin value does not exist!".format(z_s,r_s))
+            print(f"z_s {z_s} > r_s {r_s}, arcsin value does not exist!")
             return np.zeros(3)
         return np.array([decs,incs,r_s]).transpose()  #return the directions list
 
@@ -1213,45 +1212,41 @@ def main1():
     tbin=10
     step=5
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/i/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
+    modl_pp=ppf0(f'/home/i/Desktop/git/public/making_of_reliable_APWPs/data/{plid}FHS120predictPWP{tbin}{step}.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-NA APWPs from Different Algorithms, versus FHS Model Predicted APWP-------
     modl='ay18'
-    pid='{}comb'.format(plid)
+    pid=f'{plid}comb'
     wer='/mnt/g/tmp/Fay18_101comb_10_5_1_2/_4/New'
     for fod in range(57,200):
         for mav in [1]:  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
             for wgt in [2]:  #[0,1,2,3,4,5]:
-                pmag_pp=ppf('{0}/{1:03d}/{2}_{3}/{2}_{3}_{4}_{5}_{6}_{7}.txt'.format(wer,fod,modl,pid,tbin,
-                                                                                     step,mav,wgt),
+                pmag_pp=ppf(f'{wer}/{fod:03d}/{modl}_{pid}/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}.txt',
                             pnh=1)
                 for i in pmag_pp:
                     #print(i['age'])
                     if i['n']>25:
-                        makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,
-                                                                       step,mav,wgt),
+                        makedirs(f'/tmp/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}',
                                  exist_ok=True)
-                        raw_dir1='{0}/{1:03d}/{2}/{3}/{2}_{3}_{4}_{5}_{6}_{7}/{8}_{9}.d'.format(wer,fod,modl,pid,tbin,step,mav,wgt,
-                                                                                                round(i['age']+step,1),round(i['age']-step,1))
-                        raw_dir2='{0}/{1:03d}/{2}/{3}/{2}_{3}_{4}_{5}_{6}_{7}/{8}_{9}_WT.d'.format(wer,fod,modl,pid,tbin,step,mav,wgt,
-                                                                                                   round(i['age']+step,1),round(i['age']-step,1))
+                        raw_dir1=f"{wer}/{fod:03d}/{modl}/{pid}/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}/{round(i['age']+step,1)}_{round(i['age']-step,1)}.d"
+                        raw_dir2=f"{wer}/{fod:03d}/{modl}/{pid}/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}/{round(i['age']+step,1)}_{round(i['age']-step,1)}_WT.d"
                         raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf2(raw_dir2)
                         #print(raw_pls)
-                        np.savetxt("/tmp/{}_{}_{}_{}_{}_{}/{}.txt".format(modl,pid,str(tbin),str(step),str(mav),str(wgt),str(i['age'])),
+                        np.savetxt(f"/tmp/{modl}_{pid}_{str(tbin)}_{str(step)}_{str(mav)}_{str(wgt)}/{str(i['age'])}.txt",
                                    raw_pls,delimiter='	',fmt='%.9g')
-                print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
-                makedirs('{0}/{1:03d}/{2}_{3}/{4}_{5}_simil'.format(wer,fod,modl,pid,tbin,step),
+                print(f'-----------{mav}----DOUBLE-CHECK----{wgt}----------')
+                makedirs(f'{wer}/{fod:03d}/{modl}_{pid}/{tbin}_{step}_simil',
                          exist_ok=True)
                 #print(pmag_pp)
                 #print(modl_pp)
-                simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1='{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt))
-                np.savetxt('{0}/{1:03d}/{2}_{3}/{4}_{5}_simil/{2}_{3}_{4}_{5}_{6}_{7}.d'.format(wer,fod,modl,pid,str(tbin),str(step),str(mav),str(wgt)),
+                simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1=f'{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}')
+                np.savetxt(f'{wer}/{fod:03d}/{modl}_{pid}/{str(tbin)}_{str(step)}_simil/{modl}_{pid}_{str(tbin)}_{str(step)}_{str(mav)}_{str(wgt)}.d',
                            simil,delimiter='	',fmt='%.9g',comments='',
                            header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
                 fq_=fit_quality(pmag_pp,modl_pp)
-                print('---FQ:{}---{}----DOUBLE-CHECK----{}---END----'.format(fq_,mav,wgt))
+                print(f'---FQ:{fq_}---{mav}----DOUBLE-CHECK----{wgt}---END----')
 
 def main():
     """Run the algorithm on real-world examples of pmag paths vs. modeled one"""
@@ -1259,44 +1254,39 @@ def main():
     tbin=2
     step=1
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
+    modl_pp=ppf0(f'/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{plid}FHS120predictPWP{tbin}{step}.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-Pmag APWPs from Different Algorithms, versus HS Model Predicted APWP------
     modl='ay18'
-    pid='{}comb'.format(plid)
+    pid=f'{plid}comb'
     wer='/tmp'
     for mav in range(1,2):  #[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]:
         for wgt in range(4,6):  #[0,1,2,3,4,5]:
-            pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
-                                                                         step,mav,wgt),
+            pmag_pp=ppf(f'{wer}/{modl}_{pid}/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}.txt',
                         pnh=1)
             for i in pmag_pp:
                 #print(i['age'])
                 if i['n']>25:
-                    makedirs('/tmp/{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,
-                                                                   step,mav,wgt),
+                    makedirs(f'/tmp/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}',
                              exist_ok=True)
-                    raw_dir1='{0}/{1}/{2}/{1}_{2}_{3}_{4}_{5}_{6}/{7}_{8}.d'.format(wer,modl,pid,tbin,step,mav,wgt,
-                                                                                    round(i['age']+step,1),round(i['age']-step,1))
-                    raw_dir2='{0}/{1}/{2}/{1}_{2}_{3}_{4}_{5}_{6}/{7}_{8}_WT.d'.format(wer,modl,pid,tbin,step,mav,wgt,
-                                                                                       round(i['age']+step,1),round(i['age']-step,1))
+                    raw_dir1=f"{wer}/{modl}/{pid}/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}/{round(i['age']+step,1)}_{round(i['age']-step,1)}.d"
+                    raw_dir2=f"{wer}/{modl}/{pid}/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}/{round(i['age']+step,1)}_{round(i['age']-step,1)}_WT.d"
                     raw_pls=ppf1(raw_dir1) if path.isfile(raw_dir1) else ppf2(raw_dir2)
                     #print(raw_pls)
-                    np.savetxt('/tmp/{}_{}_{}_{}_{}_{}/{}.txt'.format(modl,pid,str(tbin),str(step),str(mav),str(wgt),str(i['age'])),
+                    np.savetxt(f"/tmp/{modl}_{pid}_{str(tbin)}_{str(step)}_{str(mav)}_{str(wgt)}/{str(i['age'])}.txt",
                                raw_pls,delimiter='	',fmt='%.9g')
-            #print('-----------{}----DOUBLE-CHECK----{}----------'.format(mav,wgt))
-            makedirs('{0}/{1}_{2}/{3}_{4}_simil'.format(wer,modl,pid,tbin,step),
-                     exist_ok=True)
+            #print(f'-----------{mav}----DOUBLE-CHECK----{wgt}----------')
+            makedirs(f'{wer}/{modl}_{pid}/{tbin}_{step}_simil',exist_ok=True)
             #print(pmag_pp)
             #print(modl_pp)
-            simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1='{0}_{1}_{2}_{3}_{4}_{5}'.format(modl,pid,tbin,step,mav,wgt))
-            np.savetxt('{0}/{1}_{2}/{3}_{4}_simil/{1}_{2}_{3}_{4}_{5}_{6}.d'.format(wer,modl,pid,str(tbin),str(step),str(mav),str(wgt)),
+            simil=spa_angpre_len_dif(pmag_pp,modl_pp,'ar','ar',dfn1=f'{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}')
+            np.savetxt(f'{wer}/{modl}_{pid}/{str(tbin)}_{str(step)}_simil/{modl}_{pid}_{str(tbin)}_{str(step)}_{str(mav)}_{str(wgt)}.d',
                        simil,delimiter='	',fmt='%.9g',comments='',
                        header="00_no	01_tstop	10_spa_pol_dif	11_spa_pol_tes	20_ang_seg_dif	21_ang_seg_tes	30_len_seg_dif	31_len_seg_tes	22_course_seg1	23_course_seg2	32_len_seg1	33_len_seg2")
             #fq_=fit_quality(pmag_pp,modl_pp)
-            #print('---FQ:{}---{}----DOUBLE-CHECK----{}---END----'.format(fq_,mav,wgt))
+            #print(f'---FQ:{fq_}---{mav}----DOUBLE-CHECK----{wgt}---END----')
 
 def main_fq():
     """Calculate Fit Quality scores for the 168 pairs of pmag path vs. modeled
@@ -1305,21 +1295,20 @@ def main_fq():
     tbin=10
     step=5
     #-------------Prepare Model Predicted APWP----------------------------------
-    modl_pp=ppf0('/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{}FHS120predictPWP{}{}.d'.format(plid,tbin,step))
+    modl_pp=ppf0(f'/home/g/Desktop/git/public/making_of_reliable_APWPs/data/{plid}FHS120predictPWP{tbin}{step}.d')
     modl_pp[:]['dm']/=111.195051975
     modl_pp[:]['dp']/=111.195051975  #--------------------------------END-------
 
     #-Pmag APWPs from Different Algorithms, versus HS Model Predicted APWP------
     modl='ay18'
-    pid='{}comb'.format(plid)
+    pid=f'{plid}comb'
     wer='/tmp'
     for mav in range(28):  #[17]:
         for wgt in range(6):  #[4]:
-            pmag_pp=ppf('{0}/{1}_{2}/{1}_{2}_{3}_{4}_{5}_{6}.txt'.format(wer,modl,pid,tbin,
-                                                                         step,mav,wgt),
+            pmag_pp=ppf(f'{wer}/{modl}_{pid}/{modl}_{pid}_{tbin}_{step}_{mav}_{wgt}.txt',
                         pnh=1)
             fq_=fit_quality(pmag_pp,modl_pp)
-            print('{}\t{}\t{}\t{}'.format(mav,wgt,fq_[0],fq_[1]))
+            print(f"{mav}\t{wgt}\t{fq_[0]}\t{fq_[1]}")
 
 def test():
     """Test if the functions work"""
