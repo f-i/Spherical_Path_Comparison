@@ -4,8 +4,8 @@ measuring similarity of spherical paths with spatial uncertainties, particularly
 the paleomagnetic apparent polar wander paths (APWPs) of tectonic plates. It is
 powered by PmagPy (https://github.com/PmagPy/PmagPy), GMT
 (https://www.generic-mapping-tools.org/) and bc
-(https://www.gnu.org/software/bc/). Read on for more details here:
-https://github.com/f-i/APWP_similarity
+(https://www.gnu.org/software/bc/). Read on for more details in Chapter 2 of my
+thesis: http://rave.ohiolink.edu/etdc/view?acc_num=kent1636940129241046
 
 ## How to Use
 Please use demo.ipynb (openable by Jupyter Notebook https://jupyter.org/) to
@@ -26,8 +26,8 @@ particularly for those seg far from the 1st seg. Because of this complexity,
 another disadvantage of this function is its long calculating time, which is
 about 5 times of the time the presently used solution (spa_angpre_len_dif)
 consumes. The calculation for seg angle difference in the function
-"spa_angpre_len_dif" is described in detail in the section 2.4.1 of the paper
-stored in the repository: https://github.com/f-i/APWP_similarity. The
+"spa_angpre_len_dif" is described in detail in the section 2.2.4.2 of my thesis:
+http://rave.ohiolink.edu/etdc/view?acc_num=kent1636940129241046. The
 orientation change is the difference between its previous seg and itself.
 
 [//]: # (# Related Algorithms)
