@@ -77,3 +77,14 @@ orientation change is the difference between its previous seg and itself.
 [//]: # (for obtaining a correct &Delta;&alpha;<sub>13</sub><sup>'</sup>)
 [//]: # (will be described in detail as follows. Proper map projections for this kind of)
 [//]: # (demonstrations are [a] Miller cylindrical, and [b] Azimuthal equidistant.)
+
+## Citations
+
+* Fu, C. (2021). Global Paleomagnetic Data Analysis: Improved Methods of Reconstructing Plate Motions Using Paleomagnetic Data [Master's thesis, Kent State University]. OhioLINK Electronic Theses and Dissertations Center. http://rave.ohiolink.edu/etdc/view?acc_num=kent1636940129241046
+>> APA Style (7th edition)
+
+* Fu, Chenjian. Global Paleomagnetic Data Analysis: Improved Methods of Reconstructing Plate Motions Using Paleomagnetic Data. 2021. Kent State University, Master's thesis. OhioLINK Electronic Theses and Dissertations Center, http://rave.ohiolink.edu/etdc/view?acc_num=kent1636940129241046.
+>> MLA Style (8th edition)
+
+* Fu, Chenjian. "Global Paleomagnetic Data Analysis: Improved Methods of Reconstructing Plate Motions Using Paleomagnetic Data." Master's thesis, Kent State University, 2021. http://rave.ohiolink.edu/etdc/view?acc_num=kent1636940129241046
+>> Chicago Manual of Style (17th edition)
